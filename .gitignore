@@ -1,0 +1,7 @@
+
+build/**
+Photos/**
+uploads/**
+
+app_database.sqlite
+env.txt

@@ -1,0 +1,122 @@
+cmake_minimum_required(VERSION 3.23...3.30)
+
+# cmake -S . -B build
+# cmake --build build
+
+
+project(CrowQtServer 
+    VERSION 0.5.0
+    DESCRIPTION "Crow Webserver with Qt6 & Worker"
+    HOMEPAGE_URL "https://github.com/Zheng-Bote/web-gallery_webserver"
+    LANGUAGES CXX
+)
+
+# --- Compiler Settings ---
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Warnungen aktivieren (Best Practice)
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra)
+endif()
+
+
+# --- Qt6 Setup ---
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql)
+# Qt Konflikt lösen (Crow vs Qt Signals)
+add_compile_definitions(QT_NO_KEYWORDS)
+
+# --- Configure ---
+set(EXECUTABLE_NAME "${PROJECT_NAME}")
+set(PROG_LONGNAME "Crow Web-Gallery Server")
+set(PROG_CREATED "2025")
+set(PROG_AUTHOR "ZHENG Bote")
+set(PROG_ORGANIZATION_NAME "ZHENG Robert")
+set(PROG_ORGANIZATION_DOMAIN "net.hase-zheng")
+if(Qt6_FOUND)
+    set(CMAKE_QTV "${Qt6_VERSION}")
+else()
+    set(CMAKE_QTV "Unknown")
+endif()
+add_subdirectory(configure)
+
+# --- Dependencies via FetchContent ---
+include(FetchContent)
+
+# 1. ASIO (Wichtig: VOR Crow)
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG        asio-1-30-2
+)
+FetchContent_MakeAvailable(asio)
+set(ASIO_INCLUDE_DIR ${asio_SOURCE_DIR}/asio/include)
+
+# 2. Crow
+FetchContent_Declare(
+    crow
+    GIT_REPOSITORY https://github.com/CrowCpp/Crow.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(crow)
+
+# 3. JWT-CPP
+FetchContent_Declare(
+    jwt-cpp
+    GIT_REPOSITORY https://github.com/Thalhammer/jwt-cpp.git
+    GIT_TAG        v0.7.0
+)
+FetchContent_MakeAvailable(jwt-cpp)
+
+# 4. LibBcrypt
+FetchContent_Declare(
+    libbcrypt
+    GIT_REPOSITORY https://github.com/trusch/libbcrypt.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(libbcrypt)
+
+# --- System Dependencies ---
+find_package(OpenSSL REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql)
+find_package(PostgreSQL REQUIRED) 
+
+# Exiv2 via PkgConfig
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(EXIV2 REQUIRED IMPORTED_TARGET exiv2)
+
+# --- Sources & Headers ---
+# Wichtig: Wir nutzen ${PROJECT_NAME} damit der Name immer stimmt
+include_directories(include)
+include_directories(${libbcrypt_SOURCE_DIR}/include)
+include_directories(${ASIO_INCLUDE_DIR})
+include_directories(${EXIV2_INCLUDE_DIRS}) # <--- Exiv2 Header
+
+# Alle cpp Dateien aus src/ holen (Server + Worker Logik)
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+# --- Executable ---
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+# MOC für Qt
+set_property(TARGET ${PROJECT_NAME} PROPERTY AUTOMOC ON)
+
+# Linking
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Crow::Crow
+    jwt-cpp::jwt-cpp
+    bcrypt
+    Qt6::Core
+    Qt6::Sql
+    PostgreSQL::PostgreSQL
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    PkgConfig::EXIV2       # <--- Exiv2 Linken
+)
+
+message(STATUS "Build setup complete for ${PROJECT_NAME}")
