@@ -1,5 +1,8 @@
 #include "controllers/web_controller.hpp"
-#include "rz_config.hpp" // Unsere Konstanten
+#include "rz_config.hpp" 
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace routes {
 
