@@ -18,6 +18,15 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         .CROW_MIDDLEWARES(app, AuthMiddleware) 
     ([&app](const crow::request& req, crow::response& res){
         
+        // Payload Limit setzen
+        // Standard ist oft 10MB. Wir setzen es auf 50 MB.
+        // Berechnung: 50 * 1024 * 1024 Bytes
+        if (req.body.size() > 52428800) {
+             res.code = 413; // Payload Too Large
+             res.end(R"({"error": "File too large. Max 50MB."})");
+             return;
+        }
+        
         // 1. Multipart Parsen
         crow::multipart::message msg(req);
         const crow::multipart::part* photoPart = nullptr;
