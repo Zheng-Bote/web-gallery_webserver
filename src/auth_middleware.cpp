@@ -6,6 +6,17 @@
 const std::string JWT_ISSUER = "crow_qt_server";
 
 void AuthMiddleware::before_handle(crow::request& req, crow::response& res, context& ctx) {
+
+    // -----------------------------------------------------------------------
+    // FIX FÜR CORS: OPTIONS Requests immer durchlassen!
+    // Browser senden OPTIONS ohne Token. Das darf nicht 401 sein.
+    // -----------------------------------------------------------------------
+    if (req.method == crow::HTTPMethod::OPTIONS) {
+        // Wir machen hier nichts und lassen Crow (CORS Handler) weitermachen.
+        // Ein return hier beendet die Middleware-Kette für diesen Request nicht als Fehler.
+        return; 
+    }
+    
     // 1. Authorization Header holen
     std::string authHeader = req.get_header_value("Authorization");
     
