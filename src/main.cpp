@@ -1,3 +1,7 @@
+/**
+ * @file main.cpp
+ * @brief Entry point of the Crow Web-Gallery Server.
+ */
 #include <QCoreApplication>
 #include <QThread>
 #include <QDebug>
@@ -17,7 +21,7 @@
 #include "controllers/web_controller.hpp" 
 
 // Configuration (can also be moved to config.hpp)
-const int PORT = 8080;
+const int PORT = 8080; ///< The port on which the server listens.
 
 void runCrowServer() {
     // Define App with Middleware

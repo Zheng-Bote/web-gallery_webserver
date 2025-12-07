@@ -1,3 +1,7 @@
+/**
+ * @file web_controller.cpp
+ * @brief Implementation of Static Web Routes.
+ */
 #include "controllers/web_controller.hpp"
 #include "rz_config.hpp" 
 #include <filesystem>

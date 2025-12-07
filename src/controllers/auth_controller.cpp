@@ -1,3 +1,7 @@
+/**
+ * @file auth_controller.cpp
+ * @brief Implementation of Authentication Routes.
+ */
 #include "controllers/auth_controller.hpp"
 #include "db_manager.hpp"
 #include "utils.hpp"

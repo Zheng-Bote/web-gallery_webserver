@@ -1,3 +1,7 @@
+/**
+ * @file upload_controller.cpp
+ * @brief Implementation of Upload Routes.
+ */
 #include "controllers/upload_controller.hpp"
 #include "metadata_extractor.hpp"
 #include "db_manager.hpp"

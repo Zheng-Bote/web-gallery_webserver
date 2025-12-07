@@ -1,3 +1,7 @@
+/**
+ * @file gallery_controller.cpp
+ * @brief Implementation of Gallery Routes.
+ */
 #include "controllers/gallery_controller.hpp"
 #include "db_manager.hpp"
 #include <QSqlQuery>

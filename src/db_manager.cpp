@@ -1,3 +1,7 @@
+/**
+ * @file db_manager.cpp
+ * @brief Database Management Implementation.
+ */
 #include "db_manager.hpp"
 #include <QSqlQuery>
 #include <QSqlError>
@@ -9,7 +13,7 @@
 #include <QSqlDriver> // For Transaction-Checks
 #include "bcrypt/BCrypt.hpp"
 
-const QString DbManager::SQLITE_DB_FILENAME = "app_database.sqlite";
+const QString DbManager::SQLITE_DB_FILENAME = "app_database.sqlite"; ///< Filename for the SQLite database.
 
 // ------------------------------------------------------------------
 // POSTGRESQL (Data / Gallery) - WITH CONNECTION POOLING

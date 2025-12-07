@@ -1,3 +1,7 @@
+/**
+ * @file metadata_extractor.cpp
+ * @brief Implementation of metadata extraction using Exiv2.
+ */
 #include "metadata_extractor.hpp"
 #include <exiv2/exiv2.hpp>
 #include <QDebug>

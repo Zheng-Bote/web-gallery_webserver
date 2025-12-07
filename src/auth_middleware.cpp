@@ -1,9 +1,13 @@
+/**
+ * @file auth_middleware.cpp
+ * @brief Implementation of the Authentication Middleware.
+ */
 #include "auth_middleware.hpp"
 #include "utils.hpp" // For getJwtSecret
 
 #include <jwt-cpp/jwt.h>
 
-const std::string JWT_ISSUER = "crow_qt_server";
+const std::string JWT_ISSUER = "crow_qt_server"; ///< JWT Issuer claim value.
 
 void AuthMiddleware::before_handle(crow::request& req, crow::response& res, context& ctx) {
 

@@ -4,7 +4,14 @@
 #include "crow/middlewares/cors.h"
 #include "auth_middleware.hpp"
 
+/**
+ * @brief Application routes namespace.
+ */
 namespace routes {
-    // Registers Login, Logout and Refresh routes
+    /**
+     * @brief Registers Login, Logout and Refresh routes.
+     * 
+     * @param app The Crow application instance.
+     */
     void setupAuthRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app);
 }

@@ -1,15 +1,34 @@
 #pragma once
 #include <string>
 
+/**
+ * @brief Utility functions.
+ */
 namespace utils {
 
-    // Checks file extensions (jpg, png, etc.)
+    /**
+     * @brief Checks if a file has an allowed image extension.
+     * 
+     * @param filename The filename to check.
+     * @return true if allowed, false otherwise.
+     */
     bool isAllowedImage(const std::string& filename);
 
-    // Generates random string (for Refresh Tokens)
+    /**
+     * @brief Generates a random alphanumeric string.
+     * 
+     * @param length Length of the string to generate.
+     * @return The generated random string.
+     */
     std::string generateRandomString(size_t length);
 
-    // Gets the JWT Secret from ENV or uses fallback
+    /**
+     * @brief Retrieves the JWT Secret.
+     * 
+     * Tries to read JWT_SECRET from environment variables, otherwise returns a fallback.
+     * 
+     * @return The JWT secret key.
+     */
     std::string getJwtSecret();
 
 }
