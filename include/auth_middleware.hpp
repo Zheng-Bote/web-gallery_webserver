@@ -11,6 +11,6 @@ struct AuthMiddleware : crow::ILocalMiddleware {
     void before_handle(crow::request& req, crow::response& res, context& ctx);
 
     void after_handle(crow::request& /*req*/, crow::response& /*res*/, context& /*ctx*/) {
-        // Nichts zu tun
+        // Nothing to do
     }
 };

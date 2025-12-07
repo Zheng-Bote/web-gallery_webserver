@@ -6,7 +6,7 @@
 #include <QDateTime>
 #include "metadata_extractor.hpp"
 
-// Struktur für den Insert
+// Structure for the Insert
 struct WorkerPayload {
     std::string filename;
     std::string relPath;
@@ -19,13 +19,13 @@ struct WorkerPayload {
 
 class DbManager {
 public:
-    // Initialisiert die SQLite User-DB (Tabellen erstellen, Admin user)
+    // Initializes the SQLite User-DB (create tables, admin user)
     static void initAuthDatabase();
 
-    // Liefert eine NEUE Verbindung zur PostgreSQL Datenbank (für Galerie/Uploads)
+    // Returns a NEW connection to the PostgreSQL database (for Gallery/Uploads)
     static QSqlDatabase getPostgresConnection();
 
-    // Authentifizierung (SQLite)
+    // Authentication (SQLite)
     static bool verifyUser(const std::string& username, const std::string& password);
 
     // Token Management (SQLite)
@@ -37,7 +37,7 @@ public:
     static bool insertPhoto(const WorkerPayload& p);
 
 private:
-    // Helper für interne SQLite Verbindungen
+    // Helper for internal SQLite connections
     static QSqlDatabase getAuthDbConnection(const QString& connectionName);
     static int getOrCreateKeywordId(QSqlDatabase& db, const QString& tag);
     

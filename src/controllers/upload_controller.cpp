@@ -18,16 +18,16 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         .CROW_MIDDLEWARES(app, AuthMiddleware) 
     ([&app](const crow::request& req, crow::response& res){
         
-        // Payload Limit setzen
-        // Standard ist oft 10MB. Wir setzen es auf 50 MB.
-        // Berechnung: 50 * 1024 * 1024 Bytes
+        // Set Payload Limit
+        // Default is often 10MB. We set it to 50 MB.
+        // Calculation: 50 * 1024 * 1024 Bytes
         if (req.body.size() > 52428800) {
              res.code = 413; // Payload Too Large
              res.end(R"({"error": "File too large. Max 50MB."})");
              return;
         }
         
-        // 1. Multipart Parsen
+        // 1. Parse Multipart
         crow::multipart::message msg(req);
         const crow::multipart::part* photoPart = nullptr;
         QString userSubDir = "";
@@ -59,7 +59,7 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         }
         while (userSubDir.startsWith("/")) userSubDir.remove(0, 1);
 
-        // Dateiname extrahieren
+        // Extract filename
         auto contentDisp = photoPart->get_header_object("Content-Disposition");
         std::string rawFilename = "unknown.jpg";
         if (contentDisp.params.find("filename") != contentDisp.params.end()) {
@@ -76,18 +76,18 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // User ermitteln
+        // Determine User
         auto& ctx = app.get_context<AuthMiddleware>(req);
         QString uploader = QString::fromStdString(ctx.current_user);
         
-        // TEMPORÄRER NAME (mit Prefix, um Kollisionen bei der Analyse zu vermeiden)
+        // TEMPORARY NAME (with prefix, to avoid collisions during analysis)
         QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
         QString tempFileName = QString("%1___%2___%3").arg(uploader, timestamp, qFilename);
 
-        // FINALER NAME (Sauber, ohne Prefix)
-        QString finalCleanName = qFilename; // <-- ÄNDERUNG: Wir nehmen den Originalnamen
+        // FINAL NAME (Clean, without prefix)
+        QString finalCleanName = qFilename; // <-- CHANGE: We use the original name
 
-        // 3. Temporär speichern
+        // 3. Save temporarily
         QString tempDir = "uploads/temp";
         QDir().mkpath(tempDir);
         QString tempPath = tempDir + "/" + tempFileName;
@@ -102,13 +102,13 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         file.close();
 
         // ---------------------------------------------------------
-        // WORKER LOGIK
+        // WORKER LOGIC
         // ---------------------------------------------------------
 
-        // A. Metadaten aus temp Datei lesen
+        // A. Read metadata from temp file
         PhotoData meta = MetadataExtractor::extract(tempPath.toStdString());
 
-        // B. Zielpfad bestimmen
+        // B. Determine destination path
         QString finalRoot = "Photos"; 
         if (!userSubDir.isEmpty()) finalRoot += "/" + userSubDir;
         
@@ -119,14 +119,14 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // Zielpfad mit SAUBEREM Namen
-        QString finalFullPath = finalRoot + "/" + finalCleanName; // <-- ÄNDERUNG
+        // Destination path with CLEAN name
+        QString finalFullPath = finalRoot + "/" + finalCleanName; // <-- CHANGE
 
-        // C. Verschieben (Overwrite Logik, wie in deinem ursprünglichen Worker)
+        // C. Move (Overwrite Logic...)
         if (QFile::exists(finalFullPath)) {
             if (!QFile::remove(finalFullPath)) {
                 qWarning() << "Could not overwrite existing file:" << finalFullPath;
-                // Optional: Hier könnte man Logik für "image_1.jpg" einbauen
+                // Optional: Here logic for "image_1.jpg" could be added
             }
         }
         
@@ -138,9 +138,9 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // D. DB Insert Payload vorbereiten
+        // D. Prepare DB Insert Payload
         WorkerPayload payload;
-        payload.filename = finalCleanName.toStdString(); // <-- ÄNDERUNG: Sauberer Name in DB
+        payload.filename = finalCleanName.toStdString(); // <-- CHANGE: Clean name in DB
         payload.relPath  = userSubDir.toStdString(); 
         payload.fullPath = finalFullPath.toStdString();
         payload.user     = uploader.toStdString();
@@ -171,10 +171,10 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
 
         json["path"] = finalFullPath.toStdString();
         
-        // URL für Frontend
+        // URL for Frontend
         std::string urlPath = "/media/";
         if (!userSubDir.isEmpty()) urlPath += userSubDir.toStdString() + "/";
-        urlPath += finalCleanName.toStdString(); // <-- ÄNDERUNG: URL nutzt sauberen Namen
+        urlPath += finalCleanName.toStdString(); // <-- CHANGE: URL uses clean name
         json["url"] = urlPath;
         
         res.code = 201;

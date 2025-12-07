@@ -4,12 +4,12 @@
 #include <iostream>
 #include <cmath> 
 
-// Helper: Exiv2 String zu QString
+// Helper: Convert Exiv2 String to QString
 static QString toQt(const std::string& s) {
     return QString::fromStdString(s);
 }
 
-// Helper: GPS Koordinaten berechnen
+// Helper: Calculate GPS Coordinates
 static double getGpsCoordinate(const Exiv2::ExifData& exifData, const char* key, const char* refKey) {
     try {
         auto pos = exifData.findKey(Exiv2::ExifKey(key));
@@ -24,7 +24,7 @@ static double getGpsCoordinate(const Exiv2::ExifData& exifData, const char* key,
 
         double decimal = degrees + (minutes / 60.0) + (seconds / 3600.0);
 
-        // Referenz (N/S/E/W) prüfen
+        // Check Reference (N/S/E/W)
         auto refPos = exifData.findKey(Exiv2::ExifKey(refKey));
         if (refPos != exifData.end()) {
             std::string ref = refPos->toString();
@@ -39,7 +39,7 @@ static double getGpsCoordinate(const Exiv2::ExifData& exifData, const char* key,
     }
 }
 
-// Helper: Höhe berechnen
+// Helper: Calculate Altitude
 static double getGpsAltitude(const Exiv2::ExifData& exifData) {
     try {
         auto pos = exifData.findKey(Exiv2::ExifKey("Exif.GPSInfo.GPSAltitude"));
@@ -50,10 +50,10 @@ static double getGpsAltitude(const Exiv2::ExifData& exifData) {
 
         double alt = datum.toRational(0).first / (double)datum.toRational(0).second;
 
-        // Referenz prüfen
+        // Check reference
         auto refPos = exifData.findKey(Exiv2::ExifKey("Exif.GPSInfo.GPSAltitudeRef"));
         if (refPos != exifData.end()) {
-            // Vorsicht bei älteren Exiv2 Versionen: toInt64() vs toLong()
+            // Caution with older Exiv2 versions: toInt64() vs toLong()
             long ref = static_cast<long>(refPos->toInt64());
             if (ref == 1) {
                 alt *= -1.0;
@@ -122,11 +122,11 @@ PhotoData MetadataExtractor::extract(const std::string& filepath) {
             }
         }
 
-        // --- 3. XMP (NEU HINZUGEFÜGT) ---
+        // --- 3. XMP (NEW ADDED) ---
         Exiv2::XmpData &xmpData = image->xmpData();
         if (!xmpData.empty()) {
              // A. XMP Keywords (dc:subject)
-             // XMP speichert Keywords oft als "Bag" (Liste), wir iterieren durch
+             // XMP often stores keywords as "Bag" (List), we iterate through
              for (auto pos = xmpData.begin(); pos != xmpData.end(); ++pos) {
                  if (pos->key() == "Xmp.dc.subject") {
                      QString val = toQt(pos->toString());
@@ -134,13 +134,13 @@ PhotoData MetadataExtractor::extract(const std::string& filepath) {
                  }
              }
              
-             // Helper für XMP Lookup
+             // Helper for XMP Lookup
              auto getXmp = [&](const char* k) {
                  auto p = xmpData.findKey(Exiv2::XmpKey(k));
                  return (p != xmpData.end()) ? toQt(p->toString()) : QString();
              };
 
-             // B. Location Fallback (Wenn in IPTC leer, nimm XMP Photoshop Namespace)
+             // B. Location Fallback (If empty in IPTC, take XMP Photoshop Namespace)
              if (data.city.isEmpty())        data.city = getXmp("Xmp.photoshop.City");
              if (data.province.isEmpty())    data.province = getXmp("Xmp.photoshop.State");
              if (data.country.isEmpty())     data.country = getXmp("Xmp.photoshop.Country");

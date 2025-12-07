@@ -1,5 +1,5 @@
 #include "auth_middleware.hpp"
-#include "utils.hpp" // Für getJwtSecret
+#include "utils.hpp" // For getJwtSecret
 
 #include <jwt-cpp/jwt.h>
 
@@ -8,19 +8,19 @@ const std::string JWT_ISSUER = "crow_qt_server";
 void AuthMiddleware::before_handle(crow::request& req, crow::response& res, context& ctx) {
 
     // -----------------------------------------------------------------------
-    // FIX FÜR CORS: OPTIONS Requests immer durchlassen!
-    // Browser senden OPTIONS ohne Token. Das darf nicht 401 sein.
+    // FIX FOR CORS: Always pass OPTIONS requests!
+    // Browsers send OPTIONS without a Token. This must not be 401.
     // -----------------------------------------------------------------------
     if (req.method == crow::HTTPMethod::OPTIONS) {
-        // Wir machen hier nichts und lassen Crow (CORS Handler) weitermachen.
-        // Ein return hier beendet die Middleware-Kette für diesen Request nicht als Fehler.
+        // We do nothing here and let Crow (CORS Handler) continue.
+        // A return here does not end the middleware chain for this request as an error.
         return; 
     }
     
-    // 1. Authorization Header holen
+    // 1. Get Authorization Header
     std::string authHeader = req.get_header_value("Authorization");
     
-    // Immer JSON im Fehlerfall
+    // Always JSON in case of error
     res.set_header("Content-Type", "application/json");
 
     if (authHeader.empty()) {
@@ -54,7 +54,7 @@ void AuthMiddleware::before_handle(crow::request& req, crow::response& res, cont
     } catch (const std::exception& e) {
         res.code = 401;
         std::string msg = e.what();
-        // Simples JSON escaping
+        // Simple JSON escaping
         res.end("{\"error\": \"Token verification failed\", \"details\": \"" + msg + "\"}");
     }
 }

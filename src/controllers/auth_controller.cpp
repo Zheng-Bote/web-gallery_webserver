@@ -29,7 +29,7 @@ void setupAuthRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
                 .set_expires_at(std::chrono::system_clock::now() + std::chrono::minutes{15})
                 .sign(jwt::algorithm::hs256{utils::getJwtSecret()});
 
-            // 2. Refresh Token (Langzeit)
+            // 2. Refresh Token (Long term)
             std::string refreshToken = utils::generateRandomString(64);
             DbManager::storeRefreshToken(user, refreshToken);
 

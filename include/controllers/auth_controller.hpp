@@ -5,6 +5,6 @@
 #include "auth_middleware.hpp"
 
 namespace routes {
-    // Registriert Login, Logout und Refresh Routen
+    // Registers Login, Logout and Refresh routes
     void setupAuthRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app);
 }

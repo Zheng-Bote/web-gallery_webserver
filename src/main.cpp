@@ -8,7 +8,7 @@
 #include "crow.h"
 #include "crow/middlewares/cors.h"
 
-// Unsere neuen Includes
+// Our new Includes
 #include "db_manager.hpp"
 #include "auth_middleware.hpp"
 #include "controllers/auth_controller.hpp"
@@ -16,11 +16,11 @@
 #include "controllers/gallery_controller.hpp"
 #include "controllers/web_controller.hpp" 
 
-// Konfiguration (kannst du auch in config.hpp auslagern)
+// Configuration (can also be moved to config.hpp)
 const int PORT = 8080;
 
 void runCrowServer() {
-    // App mit Middleware definieren
+    // Define App with Middleware
     crow::App<crow::CORSHandler, AuthMiddleware> app;
 
     // CORS Setup
@@ -30,7 +30,7 @@ void runCrowServer() {
         .methods("POST"_method, "GET"_method, "OPTIONS"_method)
         .origin("*");
 
-    // --- ROUTEN REGISTRIEREN ---
+    // --- REGISTER ROUTES ---
     routes::setupAuthRoutes(app);
     routes::setupUploadRoutes(app);
     routes::setupGalleryRoutes(app);
@@ -43,10 +43,10 @@ void runCrowServer() {
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
-    // 1. Datenbank initialisieren (Tabellen erstellen)
+    // 1. Initialize Database (Create Tables)
     DbManager::initAuthDatabase();
 
-    // 2. Server in eigenem Thread starten
+    // 2. Start Server in its own Thread
     std::jthread serverThread(runCrowServer);
 
     return app.exec();

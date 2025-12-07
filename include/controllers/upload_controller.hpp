@@ -5,5 +5,6 @@
 #include "auth_middleware.hpp"
 
 namespace routes {
+    // Registers Upload related routes
     void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app);
 }

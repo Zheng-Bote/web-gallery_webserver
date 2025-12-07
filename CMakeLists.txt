@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Warnungen aktivieren (Best Practice)
+# Enable warnings (Best Practice)
 if(MSVC)
     add_compile_options(/W4)
 else()
@@ -28,7 +28,7 @@ endif()
 # --- Qt6 Setup ---
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Sql)
 find_package(Qt6 REQUIRED COMPONENTS Core Sql)
-# Qt Konflikt lösen (Crow vs Qt Signals)
+# Resolve Qt conflict (Crow vs Qt Signals)
 add_compile_definitions(QT_NO_KEYWORDS)
 
 # --- Configure ---
@@ -48,7 +48,7 @@ add_subdirectory(configure)
 # --- Dependencies via FetchContent ---
 include(FetchContent)
 
-# 1. ASIO (Wichtig: VOR Crow)
+# 1. ASIO (Important: BEFORE Crow)
 FetchContent_Declare(
     asio
     GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
@@ -91,19 +91,19 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(EXIV2 REQUIRED IMPORTED_TARGET exiv2)
 
 # --- Sources & Headers ---
-# Wichtig: Wir nutzen ${PROJECT_NAME} damit der Name immer stimmt
+# Important: We use ${PROJECT_NAME} so the name is always correct
 include_directories(include)
 include_directories(${libbcrypt_SOURCE_DIR}/include)
 include_directories(${ASIO_INCLUDE_DIR})
 include_directories(${EXIV2_INCLUDE_DIRS}) # <--- Exiv2 Header
 
-# Alle cpp Dateien aus src/ holen (Server + Worker Logik)
+# Get all cpp files from src/ (Server + Worker Logic)
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 
 # --- Executable ---
 add_executable(${PROJECT_NAME} ${SOURCES})
 
-# MOC für Qt
+# MOC for Qt
 set_property(TARGET ${PROJECT_NAME} PROPERTY AUTOMOC ON)
 
 # Linking
@@ -116,7 +116,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     PostgreSQL::PostgreSQL
     OpenSSL::SSL
     OpenSSL::Crypto
-    PkgConfig::EXIV2       # <--- Exiv2 Linken
+    PkgConfig::EXIV2       # <--- Link Exiv2
 )
 
 message(STATUS "Build setup complete for ${PROJECT_NAME}")

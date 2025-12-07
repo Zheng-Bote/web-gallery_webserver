@@ -2,7 +2,7 @@
 #include "db_manager.hpp"
 #include <QSqlQuery>
 #include <QVariant>
-#include <QSqlError> // WICHTIG
+#include <QSqlError> // IMPORTANT
 #include <QDebug>
 
 namespace routes {
@@ -15,19 +15,19 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         int limit = 100;
         std::string pathFilter = "";
         
-        // Flag: Nur Ordnerstruktur laden (für Navigation Tree)
+        // Flag: Only load folder structure (for Navigation Tree)
         bool foldersOnly = req.url_params.get("folders_only") != nullptr;
 
         if (req.url_params.get("page")) page = std::stoi(req.url_params.get("page"));
         if (req.url_params.get("path")) pathFilter = req.url_params.get("path");
 
-        // Pfad bereinigen
+        // Clean up path
         while (!pathFilter.empty() && pathFilter.back() == '/') pathFilter.pop_back();
         while (!pathFilter.empty() && pathFilter.front() == '/') pathFilter.erase(0, 1);
 
         QString qPath = QString::fromStdString(pathFilter);
 
-        // NEU: Verbindung aus dem Pool holen
+        // NEW: Get connection from pool
         QSqlDatabase db = DbManager::getPostgresConnection();
         
         if (!db.isOpen()) return crow::response(500, "DB Connection Error");
@@ -35,19 +35,19 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         std::vector<crow::json::wvalue> responseList;
 
         // ---------------------------------------------------------
-        // 1. UNTERORDNER FINDEN
+        // 1. FIND SUBFOLDERS
         // ---------------------------------------------------------
-        // Ordner laden wir nur auf Seite 1, um Duplikate beim Scrollen zu vermeiden
+        // We only load folders on page 1, to avoid duplicates when scrolling
         if (page == 1) {
             QSqlQuery qFolders(db);
             QString folderSql;
 
             if (qPath.isEmpty()) {
-                // Root: Erster Teil des Pfades
+                // Root: First part of the path
                 folderSql = "SELECT DISTINCT split_part(file_path, '/', 1) as folder "
                             "FROM pictures WHERE file_path <> ''";
             } else {
-                // Subfolder: Teil nach dem aktuellen Pfad
+                // Subfolder: Part after current path
                 folderSql = "SELECT DISTINCT split_part(substring(file_path, length(:base) + 2), '/', 1) as folder "
                             "FROM pictures WHERE file_path LIKE :base || '/%'";
             }
@@ -77,9 +77,9 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         }
 
         // ---------------------------------------------------------
-        // 2. BILDER IM AKTUELLEN ORDNER
+        // 2. PICTURES IN CURRENT FOLDER
         // ---------------------------------------------------------
-        // Nur ausführen, wenn wir nicht im reinen Tree-Modus sind
+        // Only execute if we are not in pure Tree-Mode
         if (!foldersOnly) { 
             int offset = (page - 1) * limit;
             QSqlQuery qImages(db);
@@ -142,7 +142,7 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         crow::json::wvalue result = std::move(responseList);
         return crow::response(result);
         
-        // WICHTIG: Connection wird NICHT geschlossen, bleibt im Pool.
+        // IMPORTANT: Connection is NOT closed, remains in Pool.
     });
 }
 }

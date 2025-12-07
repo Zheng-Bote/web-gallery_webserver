@@ -3,13 +3,13 @@
 
 namespace utils {
 
-    // Prüft Dateiendungen (jpg, png, etc.)
+    // Checks file extensions (jpg, png, etc.)
     bool isAllowedImage(const std::string& filename);
 
-    // Generiert Zufallsstring (für Refresh Tokens)
+    // Generates random string (for Refresh Tokens)
     std::string generateRandomString(size_t length);
 
-    // Holt das JWT Secret aus ENV oder nutzt Fallback
+    // Gets the JWT Secret from ENV or uses fallback
     std::string getJwtSecret();
 
 }

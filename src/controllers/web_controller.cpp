@@ -30,19 +30,19 @@ void setupWebRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         return x; 
     });
 
-    // --- ROOT ROUTE (Startseite) ---
+    // --- ROOT ROUTE (Homepage) ---
     CROW_ROUTE(app, "/")
     ([](const crow::request&, crow::response& res){
-        // Liefert static/index.html aus
+        // Serves static/index.html
         res.set_static_file_info("static/index.html");
         res.end(); 
     });
 
     // --- STATIC FILES (CSS, JS, TXT) ---
-    // Beispiel: http://localhost:8080/static/style.css
+    // Example: http://localhost:8080/static/style.css
     CROW_ROUTE(app, "/static/<string>")
     ([](const crow::request&, crow::response& res, std::string filename){
-        // Schutz vor Directory Traversal (einfach)
+        // Protection against Directory Traversal (simple)
         if (filename.find("..") != std::string::npos) {
             res.code = 403;
             res.end();
@@ -57,8 +57,8 @@ void setupWebRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
     ([](){
         auto page = crow::mustache::load("template.html");
         crow::mustache::context ctx;
-        ctx["user_name"] = "Gast";
-        ctx["message"] = "Willkommen auf dem Refactored Server!";
+        ctx["user_name"] = "Guest";
+        ctx["message"] = "Welcome to the Refactored Server!";
         ctx["time_is_morning"] = false; 
 
         return page.render(ctx); 

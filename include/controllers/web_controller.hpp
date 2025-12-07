@@ -5,6 +5,6 @@
 #include "auth_middleware.hpp"
 
 namespace routes {
-    // Kümmert sich um statische Seiten, Templates und System-Infos
+    // Handles static pages, templates and system info
     void setupWebRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app);
 }

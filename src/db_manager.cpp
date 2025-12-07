@@ -6,16 +6,16 @@
 #include <QDateTime>
 #include <QProcessEnvironment>
 #include <QVariant>
-#include <QSqlDriver> // Für Transaktions-Checks
+#include <QSqlDriver> // For Transaction-Checks
 #include "bcrypt/BCrypt.hpp"
 
 const QString DbManager::SQLITE_DB_FILENAME = "app_database.sqlite";
 
 // ------------------------------------------------------------------
-// POSTGRESQL (Data / Gallery) - MIT CONNECTION POOLING
+// POSTGRESQL (Data / Gallery) - WITH CONNECTION POOLING
 // ------------------------------------------------------------------
 QSqlDatabase DbManager::getPostgresConnection() {
-    // Name basiert auf Thread-ID -> Jeder Thread hat seine eigene, dauerhafte Verbindung
+    // Name based on Thread-ID -> Each Thread has its own, persistent connection
     QString connName = QString("pg_conn_%1").arg((quint64)QThread::currentThreadId());
 
     if (QSqlDatabase::contains(connName)) {
@@ -24,7 +24,7 @@ QSqlDatabase DbManager::getPostgresConnection() {
         if (db.isOpen()) {
             return db;
         } else {
-            // Versuchen, erneut zu öffnen (falls Timeout o.ä.)
+            // Try to reopen (in case of Timeout etc.)
             if (!db.open()) {
                 qCritical() << "Failed to reopen existing Postgres connection:" << connName << db.lastError().text();
             }
@@ -32,7 +32,7 @@ QSqlDatabase DbManager::getPostgresConnection() {
         }
     }
 
-    // Neue Verbindung anlegen (nur 1x pro Thread)
+    // Create new connection (only 1x per Thread)
     QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL", connName);
     
     db.setHostName(qEnvironmentVariable("PG_HOST", "localhost"));
@@ -194,12 +194,12 @@ int DbManager::getOrCreateKeywordId(QSqlDatabase& db, const QString& tag) {
 }
 
 bool DbManager::insertPhoto(const WorkerPayload& p) {
-    // NEU: Gepoolte Verbindung nutzen (keine UUID mehr)
+    // NEW: Use pooled connection (no UUID anymore)
     QSqlDatabase db = getPostgresConnection();
     
     if (!db.isOpen()) return false;
 
-    // Transaktion starten
+    // Start Transaction
     db.transaction();
 
     bool ok = true;
@@ -236,7 +236,7 @@ bool DbManager::insertPhoto(const WorkerPayload& p) {
         qLoc.bindValue(":ci", p.meta.city);
         if(!qLoc.exec()) {
              qWarning() << "Insert Location failed:" << qLoc.lastError().text();
-             // Nicht kritisch
+             // Not critical
         }
 
         // 3. Exif
@@ -254,10 +254,10 @@ bool DbManager::insertPhoto(const WorkerPayload& p) {
         qExif.bindValue(":dto", p.meta.takenAt);
         if(!qExif.exec()) {
             qWarning() << "Insert Exif failed:" << qExif.lastError().text();
-            // Nicht kritisch
+            // Not critical
         }
 
-        // 4. IPTC / XMP (Textdaten)
+        // 4. IPTC / XMP (Text Data)
         QSqlQuery qIptc(db);
         qIptc.prepare("INSERT INTO meta_iptc (ref_picture, object_name, caption, copyright) VALUES (:id, :obj, :cap, :copy)");
         qIptc.bindValue(":id", picId);
@@ -291,6 +291,6 @@ bool DbManager::insertPhoto(const WorkerPayload& p) {
         db.rollback();
     }
 
-    // WICHTIG: Connection NICHT schließen, sie bleibt offen für den Thread
+    // IMPORTANT: DO NOT close connection, it remains open for the Thread
     return ok; 
 }
