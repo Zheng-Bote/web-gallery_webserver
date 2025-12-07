@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.23...3.30)
 
 
 project(CrowQtServer 
-    VERSION 1.0.0
+    VERSION 1.0.1
     DESCRIPTION "Crow Webserver with Qt6 & Worker"
     HOMEPAGE_URL "https://github.com/Zheng-Bote/web-gallery_webserver"
     LANGUAGES CXX

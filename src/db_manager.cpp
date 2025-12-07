@@ -6,23 +6,34 @@
 #include <QDateTime>
 #include <QProcessEnvironment>
 #include <QVariant>
+#include <QSqlDriver> // Für Transaktions-Checks
 #include "bcrypt/BCrypt.hpp"
 
 const QString DbManager::SQLITE_DB_FILENAME = "app_database.sqlite";
 
 // ------------------------------------------------------------------
-// POSTGRESQL (Data / Gallery)
+// POSTGRESQL (Data / Gallery) - MIT CONNECTION POOLING
 // ------------------------------------------------------------------
-QSqlDatabase DbManager::getPostgresConnection(const QString& connectionName) {
-    if (QSqlDatabase::contains(connectionName)) {
-        QSqlDatabase db = QSqlDatabase::database(connectionName);
-        if (!db.isOpen() && !db.open()) {
-            qCritical() << "Failed to reopen Postgres connection:" << connectionName;
+QSqlDatabase DbManager::getPostgresConnection() {
+    // Name basiert auf Thread-ID -> Jeder Thread hat seine eigene, dauerhafte Verbindung
+    QString connName = QString("pg_conn_%1").arg((quint64)QThread::currentThreadId());
+
+    if (QSqlDatabase::contains(connName)) {
+        QSqlDatabase db = QSqlDatabase::database(connName);
+        
+        if (db.isOpen()) {
+            return db;
+        } else {
+            // Versuchen, erneut zu öffnen (falls Timeout o.ä.)
+            if (!db.open()) {
+                qCritical() << "Failed to reopen existing Postgres connection:" << connName << db.lastError().text();
+            }
+            return db;
         }
-        return db;
     }
 
-    QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL", connectionName);
+    // Neue Verbindung anlegen (nur 1x pro Thread)
+    QSqlDatabase db = QSqlDatabase::addDatabase("QPSQL", connName);
     
     db.setHostName(qEnvironmentVariable("PG_HOST", "localhost"));
     db.setPort(qEnvironmentVariable("PG_PORT", "5432").toInt());
@@ -31,8 +42,11 @@ QSqlDatabase DbManager::getPostgresConnection(const QString& connectionName) {
     db.setPassword(qEnvironmentVariable("PG_PASS"));
 
     if (!db.open()) {
-        qCritical() << "Postgres Connection Error (" << connectionName << "):" << db.lastError().text();
+        qCritical() << "Postgres Connection Error (" << connName << "):" << db.lastError().text();
+    } else {
+        qDebug() << "New Postgres Connection established for thread:" << connName;
     }
+
     return db;
 }
 
@@ -180,104 +194,103 @@ int DbManager::getOrCreateKeywordId(QSqlDatabase& db, const QString& tag) {
 }
 
 bool DbManager::insertPhoto(const WorkerPayload& p) {
-    QString connName = QString("upload_worker_%1").arg((quint64)QThread::currentThreadId());
+    // NEU: Gepoolte Verbindung nutzen (keine UUID mehr)
+    QSqlDatabase db = getPostgresConnection();
     
-    {
-        QSqlDatabase db = getPostgresConnection(connName);
-        if (!db.isOpen()) return false;
+    if (!db.isOpen()) return false;
 
-        db.transaction();
-        bool ok = true;
-        qint64 picId = -1;
+    // Transaktion starten
+    db.transaction();
 
-        // 1. Picture
-        QSqlQuery q(db);
-        q.prepare("INSERT INTO pictures (file_name, file_path, full_path, file_size, width, height, file_datetime, upload_user) "
-                  "VALUES (:fn, :fp, :full, :sz, :w, :h, :dt, :usr) RETURNING id");
-        q.bindValue(":fn", QString::fromStdString(p.filename));
-        q.bindValue(":fp", QString::fromStdString(p.relPath));
-        q.bindValue(":full", QString::fromStdString(p.fullPath));
-        q.bindValue(":sz", p.fileSize);
-        q.bindValue(":w", p.meta.width);
-        q.bindValue(":h", p.meta.height);
-        q.bindValue(":dt", p.fileDate);
-        q.bindValue(":usr", QString::fromStdString(p.user));
+    bool ok = true;
+    qint64 picId = -1;
+
+    // 1. Picture
+    QSqlQuery q(db);
+    q.prepare("INSERT INTO pictures (file_name, file_path, full_path, file_size, width, height, file_datetime, upload_user) "
+              "VALUES (:fn, :fp, :full, :sz, :w, :h, :dt, :usr) RETURNING id");
+    q.bindValue(":fn", QString::fromStdString(p.filename));
+    q.bindValue(":fp", QString::fromStdString(p.relPath));
+    q.bindValue(":full", QString::fromStdString(p.fullPath));
+    q.bindValue(":sz", p.fileSize);
+    q.bindValue(":w", p.meta.width);
+    q.bindValue(":h", p.meta.height);
+    q.bindValue(":dt", p.fileDate);
+    q.bindValue(":usr", QString::fromStdString(p.user));
+    
+    if (q.exec() && q.next()) {
+        picId = q.value(0).toLongLong();
+    } else {
+        ok = false;
+        qCritical() << "Insert Picture failed:" << q.lastError().text();
+    }
+
+    if (ok) {
+        // 2. Location
+        QSqlQuery qLoc(db);
+        qLoc.prepare("INSERT INTO meta_location (ref_picture, country, country_code, province, city) VALUES (:id, :c, :cc, :p, :ci)");
+        qLoc.bindValue(":id", picId);
+        qLoc.bindValue(":c", p.meta.country);
+        qLoc.bindValue(":cc", p.meta.countryCode);
+        qLoc.bindValue(":p", p.meta.province);
+        qLoc.bindValue(":ci", p.meta.city);
+        if(!qLoc.exec()) {
+             qWarning() << "Insert Location failed:" << qLoc.lastError().text();
+             // Nicht kritisch
+        }
+
+        // 3. Exif
+        QSqlQuery qExif(db);
+        qExif.prepare("INSERT INTO meta_exif (ref_picture, make, model, iso, aperture, exposure_time, gps_latitude, gps_longitude, datetime_original) "
+                      "VALUES (:id, :mk, :md, :iso, :ap, :exp, :lat, :lon, :dto)");
+        qExif.bindValue(":id", picId);
+        qExif.bindValue(":mk", p.meta.make);
+        qExif.bindValue(":md", p.meta.model);
+        qExif.bindValue(":iso", p.meta.iso);
+        qExif.bindValue(":ap", p.meta.aperture);
+        qExif.bindValue(":exp", p.meta.exposure);
+        qExif.bindValue(":lat", p.meta.gpsLat);
+        qExif.bindValue(":lon", p.meta.gpsLon);
+        qExif.bindValue(":dto", p.meta.takenAt);
+        if(!qExif.exec()) {
+            qWarning() << "Insert Exif failed:" << qExif.lastError().text();
+            // Nicht kritisch
+        }
+
+        // 4. IPTC / XMP (Textdaten)
+        QSqlQuery qIptc(db);
+        qIptc.prepare("INSERT INTO meta_iptc (ref_picture, object_name, caption, copyright) VALUES (:id, :obj, :cap, :copy)");
+        qIptc.bindValue(":id", picId);
+        qIptc.bindValue(":obj", p.meta.title);
+        QString cap = p.meta.caption.isEmpty() ? p.meta.description : p.meta.caption;
+        qIptc.bindValue(":cap", cap);
+        qIptc.bindValue(":copy", p.meta.copyright);
         
-        if (q.exec() && q.next()) {
-            picId = q.value(0).toLongLong();
-        } else {
-            ok = false;
-            qCritical() << "Insert Picture failed:" << q.lastError().text();
+        if(!qIptc.exec()) {
+             qWarning() << "Insert IPTC failed:" << qIptc.lastError().text();
         }
 
-        if (ok) {
-            // 2. Location
-            QSqlQuery qLoc(db);
-            qLoc.prepare("INSERT INTO meta_location (ref_picture, country, country_code, province, city) VALUES (:id, :c, :cc, :p, :ci)");
-            qLoc.bindValue(":id", picId);
-            qLoc.bindValue(":c", p.meta.country);
-            qLoc.bindValue(":cc", p.meta.countryCode);
-            qLoc.bindValue(":p", p.meta.province);
-            qLoc.bindValue(":ci", p.meta.city);
-            if(!qLoc.exec()) {
-                 qWarning() << "Insert Location failed:" << qLoc.lastError().text();
-                 ok = false; 
+        // 5. Keywords
+        for(const auto& k : p.meta.keywords) {
+            if(k.trimmed().isEmpty()) continue;
+            int kId = getOrCreateKeywordId(db, k.trimmed());
+            if(kId > 0) {
+                QSqlQuery qLink(db);
+                qLink.prepare("INSERT INTO picture_keywords (picture_id, keyword_id) VALUES (:pid, :kid) ON CONFLICT DO NOTHING");
+                qLink.bindValue(":pid", picId);
+                qLink.bindValue(":kid", kId);
+                qLink.exec();
             }
-
-            // 3. Exif
-            QSqlQuery qExif(db);
-            qExif.prepare("INSERT INTO meta_exif (ref_picture, make, model, iso, aperture, exposure_time, gps_latitude, gps_longitude, datetime_original) "
-                          "VALUES (:id, :mk, :md, :iso, :ap, :exp, :lat, :lon, :dto)");
-            qExif.bindValue(":id", picId);
-            qExif.bindValue(":mk", p.meta.make);
-            qExif.bindValue(":md", p.meta.model);
-            qExif.bindValue(":iso", p.meta.iso);
-            qExif.bindValue(":ap", p.meta.aperture);
-            qExif.bindValue(":exp", p.meta.exposure);
-            qExif.bindValue(":lat", p.meta.gpsLat);
-            qExif.bindValue(":lon", p.meta.gpsLon);
-            qExif.bindValue(":dto", p.meta.takenAt);
-            if(!qExif.exec()) {
-                qWarning() << "Insert Exif failed:" << qExif.lastError().text();
-                ok = false;
-            }
-
-            // 4. IPTC / XMP (Textdaten)
-            QSqlQuery qIptc(db);
-            qIptc.prepare("INSERT INTO meta_iptc (ref_picture, object_name, caption, copyright) VALUES (:id, :obj, :cap, :copy)");
-            qIptc.bindValue(":id", picId);
-            qIptc.bindValue(":obj", p.meta.title);
-            // Caption Fallback auf Description
-            QString cap = p.meta.caption.isEmpty() ? p.meta.description : p.meta.caption;
-            qIptc.bindValue(":cap", cap);
-            qIptc.bindValue(":copy", p.meta.copyright);
-            
-            if(!qIptc.exec()) {
-                 qWarning() << "Insert IPTC failed:" << qIptc.lastError().text();
-                 // Optional: ok = false; (Wenn fehlende IPTC Daten den Upload stoppen sollen)
-            }
-
-            // 5. Keywords
-            for(const auto& k : p.meta.keywords) {
-                if(k.trimmed().isEmpty()) continue;
-                int kId = getOrCreateKeywordId(db, k.trimmed());
-                if(kId > 0) {
-                    QSqlQuery qLink(db);
-                    qLink.prepare("INSERT INTO picture_keywords (picture_id, keyword_id) VALUES (:pid, :kid) ON CONFLICT DO NOTHING");
-                    qLink.bindValue(":pid", picId);
-                    qLink.bindValue(":kid", kId);
-                    qLink.exec();
-                }
-            }
-        }
-
-        if (ok) {
-            db.commit();
-            qDebug() << "DB Insert success for ID:" << picId;
-        } else {
-            db.rollback();
         }
     }
-    QSqlDatabase::removeDatabase(connName);
-    return true; 
+
+    if (ok) {
+        db.commit();
+        qDebug() << "DB Insert success for ID:" << picId;
+    } else {
+        db.rollback();
+    }
+
+    // WICHTIG: Connection NICHT schließen, sie bleibt offen für den Thread
+    return ok; 
 }

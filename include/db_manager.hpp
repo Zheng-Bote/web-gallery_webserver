@@ -23,7 +23,7 @@ public:
     static void initAuthDatabase();
 
     // Liefert eine NEUE Verbindung zur PostgreSQL Datenbank (für Galerie/Uploads)
-    static QSqlDatabase getPostgresConnection(const QString& connectionName);
+    static QSqlDatabase getPostgresConnection();
 
     // Authentifizierung (SQLite)
     static bool verifyUser(const std::string& username, const std::string& password);
@@ -39,7 +39,6 @@ public:
 private:
     // Helper für interne SQLite Verbindungen
     static QSqlDatabase getAuthDbConnection(const QString& connectionName);
-
     static int getOrCreateKeywordId(QSqlDatabase& db, const QString& tag);
     
     static const QString SQLITE_DB_FILENAME;
