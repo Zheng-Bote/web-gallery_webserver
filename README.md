@@ -166,6 +166,7 @@ bla bla ... with a little help from my friends
 │   ├── CMakeLists.txt
 │   └── rz_config.hpp.in
 ├── docs
+│   ├── deployment.md
 │   └── todos.md
 ├── include
 │   ├── auth_middleware.hpp
@@ -175,6 +176,7 @@ bla bla ... with a little help from my friends
 │   │   ├── upload_controller.hpp
 │   │   └── web_controller.hpp
 │   ├── db_manager.hpp
+│   ├── image_processor.hpp
 │   ├── metadata_extractor.hpp
 │   ├── rz_config.hpp
 │   └── utils.hpp
@@ -186,6 +188,7 @@ bla bla ... with a little help from my friends
 │   │   ├── upload_controller.cpp
 │   │   └── web_controller.cpp
 │   ├── db_manager.cpp
+│   ├── image_processor.cpp
 │   ├── main.cpp
 │   ├── metadata_extractor.cpp
 │   └── utils.cpp
@@ -195,7 +198,7 @@ bla bla ... with a little help from my friends
 │   └── template.html
 └── tree.bak
 
-14 directories, 42 files
+14 directories, 45 files
 ```
 <!-- readme-tree end -->
 
