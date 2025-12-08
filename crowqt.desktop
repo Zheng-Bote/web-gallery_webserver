@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CrowQtServer
+Comment=High Performance Photo Gallery Server
+Exec=CrowQtServer
+Icon=crowqt
+Categories=Utility;
+Terminal=true

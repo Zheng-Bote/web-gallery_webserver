@@ -1,7 +1,13 @@
-
+AppDir/**
 build/**
+build_appimage/**
 Photos/**
 uploads/**
 
+CrowQtServer-x86_64.AppImage
 app_database.sqlite
 CrowQtServer.env
+
+linuxdeploy-x86_64.AppImage
+linuxdeploy-plugin-qt-x86_64.AppImage
+  
