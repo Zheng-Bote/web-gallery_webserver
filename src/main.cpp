@@ -16,7 +16,6 @@
 
 #include "dotenv.h"
 
-// Our new Includes
 #include "db_manager.hpp"
 #include "auth_middleware.hpp"
 #include "controllers/auth_controller.hpp"
@@ -24,7 +23,7 @@
 #include "controllers/gallery_controller.hpp"
 #include "controllers/web_controller.hpp" 
 
-// Port optional auch aus ENV laden
+// Port optionally loaded from ENV
 int getPort() {
     if (const char* env_p = std::getenv("PORT")) return std::atoi(env_p);
     return 8080;
@@ -55,32 +54,32 @@ int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     // --- DOTENV SETUP ---
-    // /pfad/zu/CrowQtServer.env
-   // --- PFAD LOGIK ---
+    // /path/to/CrowQtServer.env
+   // --- PATH LOGIC ---
     QString envPath;
     
-    // Prüfen, ob wir in einem AppImage laufen
-    // Die Variable APPIMAGE enthält den Pfad zum .AppImage File selbst
+    // Check if we are running inside an AppImage
+    // The variable APPIMAGE contains the path to the .AppImage file itself
     const char* appImageEnv = std::getenv("APPIMAGE");
     
     if (appImageEnv) {
-        // Wir sind ein AppImage!
-        // Config liegt NEBEN dem AppImage File (nicht darin)
+        // We are an AppImage!
+        // Config sits NEXT TO the AppImage File (not inside it)
         QFileInfo appImageInfo(appImageEnv);
         envPath = appImageInfo.absoluteDir().filePath("CrowQtServer.env");
         
-        // Auch das Working Directory setzen, damit 'Photos/' neben dem AppImage landen
+        // Also set the Working Directory so 'Photos/' ends up next to the AppImage
         QDir::setCurrent(appImageInfo.absolutePath());
     } else {
-        // Normaler Dev-Mode
+        // Normal Dev-Mode
         envPath = QCoreApplication::applicationFilePath() + ".env";
     }
 
-    // --- DOTENV LADEN ---    
-    // Prüfen ob Datei existiert (um unnötige Exception im Log zu vermeiden)
+    // --- LOAD DOTENV ---    
+    // Check if file exists (to avoid unnecessary exception in log)
     if (QFile::exists(envPath)) {
         try {
-            // dotenv lädt die Werte in std::getenv
+            // dotenv loads values into std::getenv
             dotenv::init(envPath.toStdString().c_str());
             qInfo() << "Environment loaded from:" << envPath;
         } catch (const std::exception& e) {

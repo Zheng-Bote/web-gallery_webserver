@@ -88,7 +88,7 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             int offset = (page - 1) * limit;
             QSqlQuery qImages(db);
             
-            // UPDATE: Wir joinen meta_iptc und holen Keywords per Subselect (Postgres string_agg)
+            // UPDATE: We join meta_iptc and fetch keywords via subselect (Postgres string_agg)
                 QString imgSql = R"(
                     SELECT 
                         p.id, p.file_name, p.file_path, p.file_datetime,
@@ -120,13 +120,13 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
                         crow::json::wvalue item;
                         item["id"] = qImages.value("id").toInt();
                         item["filename"] = qImages.value("file_name").toString().toStdString();
-                        // Wir nutzen 'name' im Frontend als Titel, falls vorhanden, sonst Dateiname
+                        // We use 'name' in frontend as title if present, otherwise filename
                         QString dbTitle = qImages.value("title").toString();
                         item["name"] = dbTitle.isEmpty() ? qImages.value("file_name").toString().toStdString() : dbTitle.toStdString();
                         
                         item["type"] = "image";
                         
-                        // Pfade
+                        // Paths
                         QString relDir = qImages.value("file_path").toString();
                         QString fName = qImages.value("file_name").toString();
                         QString fullUrl = "/media/";
@@ -134,24 +134,24 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
                         fullUrl += fName;
                         item["url"] = fullUrl.toStdString();
                         
-                        // Datum
+                        // Date
                         QDateTime dt = qImages.value("file_datetime").toDateTime();
                         item["date"] = dt.isValid() ? dt.toString(Qt::ISODate).toStdString() : "";
 
-                        // Metadaten
+                        // Metadata
                         item["city"] = qImages.value("city").toString().toStdString();
                         item["country"] = qImages.value("country").toString().toStdString();
                         
                         QString cam = qImages.value("model").toString();
                         if (!cam.isEmpty()) item["camera"] = cam.toStdString();
                         
-                        // --- NEU: IPTC Daten senden ---
+                        // --- NEW: Send IPTC Data ---
                         item["title"] = dbTitle.toStdString();
                         item["description"] = qImages.value("description").toString().toStdString();
                         item["copyright"] = qImages.value("copyright").toString().toStdString();
                         
-                        // Keywords kommen als "Tag1,Tag2,Tag3" String aus der DB
-                        // Wir senden ihn als String, das Frontend splittet ihn
+                        // Keywords come as "Tag1,Tag2,Tag3" string from DB
+                        // We send it as string, the frontend splits it
                         item["keywords_string"] = qImages.value("keyword_string").toString().toStdString();
 
                         responseList.push_back(item);
@@ -181,7 +181,7 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             res.code = 200;
             res.end(R"({"status": "deleted"})");
         } else {
-            res.code = 404; // Oder 500, aber meistens ist ID nicht gefunden
+            res.code = 404; // Or 500, but mostly ID is not found
             res.end(R"({"error": "Could not delete photo"})");
         }
     });
@@ -204,7 +204,7 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
 
         PhotoUpdateData data;
         
-        // Titel & Beschreibung
+        // Title & Description
         if (json.has("title")) data.title = json["title"].s();
         if (json.has("description")) data.description = json["description"].s();
         

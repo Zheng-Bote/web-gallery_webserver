@@ -22,11 +22,13 @@ struct WorkerPayload {
     PhotoData meta; ///< Extracted metadata.
 };
 
-// NEU: Struktur für Updates
+/**
+ * @brief Structure for Photo Updates.
+ */
 struct PhotoUpdateData {
-    std::string title;
-    std::string description; // Mapping auf 'caption' in DB
-    std::vector<std::string> keywords;
+    std::string title; ///< New title.
+    std::string description; ///< New description (mapped to 'caption' in DB).
+    std::vector<std::string> keywords; ///< New list of keywords.
 };
 
 /**

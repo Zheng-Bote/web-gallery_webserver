@@ -59,14 +59,14 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         }
 
         // ---------------------------------------------------------
-        // PFAD BEREINIGEN (FIX FÜR DOPPELTE SLASHES)
+        // CLEAN PATH (FIX FOR DOUBLE SLASHES)
         // ---------------------------------------------------------
         
-        // 1. Backslashes (Windows) zu Slashes normalisieren
+        // 1. Normalize Backslashes (Windows) to Slashes
         userSubDir.replace("\\", "/");
 
-        // 2. Doppelte/Mehrfache Slashes entfernen (// -> /)
-        // Regex findet Vorkommen von 2 oder mehr Slashes
+        // 2. Remove double/multiple slashes (// -> /)
+        // Regex finds occurrences of 2 or more slashes
         static const QRegularExpression multiSlash(R"(/+)");
         userSubDir.replace(multiSlash, "/");
 
@@ -77,7 +77,7 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // 4. Führende und nachgestellte Slashes entfernen
+        // 4. Remove leading and trailing slashes
         while (userSubDir.startsWith("/")) userSubDir.remove(0, 1);
         while (userSubDir.endsWith("/")) userSubDir.chop(1);
 
@@ -93,25 +93,25 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
 
         QString qFilename = QString::fromStdString(rawFilename);
         
-        // 1. Browser-Quotes entfernen
+        // 1. Remove Browser Quotes
         if (qFilename.startsWith('"') || qFilename.startsWith('\'')) qFilename.remove(0, 1);
         if (qFilename.endsWith('"') || qFilename.endsWith('\'')) qFilename.chop(1);
         
-        // 2. Leerzeichen zu Unterstrich (gut für URLs)
+        // 2. Spaces to Underscores (good for URLs)
         qFilename.replace(" ", "_");
 
-        // 3. Böse Zeichen zu Bindestrich (Windows-Inkompatibel & Pfad-Trenner)
-        // Wir nutzen eine Regex für alle verbotenen Zeichen auf einmal
-        // R"(...)" ist ein Raw-String, damit wir Backslashes nicht doppelt escapen müssen
+        // 3. Bad characters to Hyphen (Windows-Incompatible & Path-Separators)
+        // We use a regex for all forbidden characters at once
+        // R"(...)" is a raw string, to avoid double escaping backslashes
         static const QRegularExpression illegalChars(R"([:/\\*?"'<>|])");
         qFilename.replace(illegalChars, "-");
 
-        // 4. Doppelte Punkte verhindern (Sicherheit gegen .. Pfade)
+        // 4. Prevent double dots (Security against .. paths)
         while (qFilename.contains("..")) {
             qFilename.replace("..", ".");
         }
 
-        // 5. Control Characters entfernen (z.B. Newlines im Dateinamen)
+        // 5. Remove Control Characters (e.g. Newlines in filename)
         static const QRegularExpression controlChars(R"([\x00-\x1f\x7f])");
         qFilename.remove(controlChars);
 
@@ -183,14 +183,14 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // --- WebP Generierung starten ---
-        // Wir übergeben den vollen Pfad zum neuen Bild und den Ordner
+        // --- Start WebP Generation ---
+        // We pass the full path to the new image and the folder
         // finalFullPath: "Photos/2025/Bild.jpg"
         // finalRoot:     "Photos/2025"
         
-        // Wir nutzen QThreadPool für Fire&Forget. 
-        // WICHTIG: Wir müssen die QStrings in das Lambda kopieren (capture by value),
-        // da die Referenzen ungültig werden, sobald dieser Request-Block endet.
+        // We use QThreadPool for Fire&Forget. 
+        // IMPORTANT: We must copy QStrings into the lambda (capture by value),
+        // as references become invalid once this request block ends.
         QThreadPool::globalInstance()->start([finalFullPath, finalRoot](){
             ImageProcessor::generateWebPVersions(finalFullPath, finalRoot);
             qDebug() << "Background processing finished for:" << finalFullPath;
