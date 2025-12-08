@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.23...3.30)
 
 
 project(CrowQtServer 
-    VERSION 1.0.1
+    VERSION 0.8.0
     DESCRIPTION "Crow Webserver with Qt6 & Worker"
     HOMEPAGE_URL "https://github.com/Zheng-Bote/web-gallery_webserver"
     LANGUAGES CXX
@@ -26,8 +26,8 @@ endif()
 
 
 # --- Qt6 Setup ---
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Sql)
-find_package(Qt6 REQUIRED COMPONENTS Core Sql)
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Sql Gui Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql Gui Concurrent)
 # Resolve Qt conflict (Crow vs Qt Signals)
 add_compile_definitions(QT_NO_KEYWORDS)
 
@@ -81,6 +81,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libbcrypt)
 
+# 5. Dotenv-CPP
+FetchContent_Declare(
+    dotenv-cpp
+    GIT_REPOSITORY https://github.com/laserpants/dotenv-cpp.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(dotenv-cpp)
+
 # --- System Dependencies ---
 find_package(OpenSSL REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Sql)
@@ -113,10 +121,37 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     bcrypt
     Qt6::Core
     Qt6::Sql
+    Qt6::Gui
+    Qt6::Concurrent
     PostgreSQL::PostgreSQL
     OpenSSL::SSL
     OpenSSL::Crypto
-    PkgConfig::EXIV2       # <--- Link Exiv2
+    PkgConfig::EXIV2
+    dotenv
 )
 
+
+# --- INSTALLATION RULES (Für AppImage) ---
+
+# 1. Das Executable nach /usr/bin installieren (Standard im AppImage)
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+
+# 2. Den Static-Ordner (Frontend) installieren (falls du kein NGINX nutzt)
+#    Falls du NGINX nutzt, brauchst du das hier nicht, aber für ein
+#    Standalone-AppImage ist es sinnvoll.
+if(EXISTS "${CMAKE_SOURCE_DIR}/static")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/static" DESTINATION bin)
+endif()
+
+# 3. Icon und Desktop-File (benötigt AppImage)
+#    Wir erstellen Dummy-Dateien, falls sie nicht da sind, oder kopieren sie.
+#    (Siehe Schritt 2 für die Erstellung der Dateien)
+install(FILES "${CMAKE_SOURCE_DIR}/crowqt.desktop" DESTINATION share/applications)
+install(FILES "${CMAKE_SOURCE_DIR}/crowqt.png"     DESTINATION share/icons/hicolor/256x256/apps)
+
+
+
+################
 message(STATUS "Build setup complete for ${PROJECT_NAME}")
+
+

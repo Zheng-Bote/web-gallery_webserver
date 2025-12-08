@@ -88,56 +88,74 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             int offset = (page - 1) * limit;
             QSqlQuery qImages(db);
             
-            QString imgSql = R"(
-                SELECT 
-                    p.id, p.file_name, p.file_path, p.file_datetime,
-                    l.city, l.country,
-                    e.iso, e.aperture, e.exposure_time, e.model
-                FROM pictures p
-                LEFT JOIN meta_location l ON p.id = l.ref_picture
-                LEFT JOIN meta_exif e ON p.id = e.ref_picture
-                WHERE p.file_path = :path
-                ORDER BY p.file_datetime DESC
-                LIMIT :lim OFFSET :off
-            )";
+            // UPDATE: Wir joinen meta_iptc und holen Keywords per Subselect (Postgres string_agg)
+                QString imgSql = R"(
+                    SELECT 
+                        p.id, p.file_name, p.file_path, p.file_datetime,
+                        l.city, l.country,
+                        e.iso, e.aperture, e.exposure_time, e.model,
+                        i.object_name as title, i.caption as description, i.copyright,
+                        (
+                            SELECT string_agg(k.tag, ',') 
+                            FROM keywords k 
+                            JOIN picture_keywords pk ON k.id = pk.keyword_id 
+                            WHERE pk.picture_id = p.id
+                        ) as keyword_string
+                    FROM pictures p
+                    LEFT JOIN meta_location l ON p.id = l.ref_picture
+                    LEFT JOIN meta_exif e ON p.id = e.ref_picture
+                    LEFT JOIN meta_iptc i ON p.id = i.ref_picture
+                    WHERE p.file_path = :path
+                    ORDER BY p.file_datetime DESC
+                    LIMIT :lim OFFSET :off
+                )";
 
-            qImages.prepare(imgSql);
-            qImages.bindValue(":path", qPath);
-            qImages.bindValue(":lim", limit);
-            qImages.bindValue(":off", offset);
-            
-            if (qImages.exec()) {
-                while(qImages.next()) {
-                    crow::json::wvalue item;
-                    item["id"] = qImages.value("id").toInt();
-                    item["name"] = qImages.value("file_name").toString().toStdString();
-                    item["filename"] = qImages.value("file_name").toString().toStdString();
-                    item["type"] = "image";
-                    
-                    QString relDir = qImages.value("file_path").toString();
-                    QString fName = qImages.value("file_name").toString();
-                    
-                    QString fullUrl = "/media/";
-                    if (!relDir.isEmpty()) fullUrl += relDir + "/";
-                    fullUrl += fName;
-                    
-                    item["url"] = fullUrl.toStdString();
-                    
-                    QDateTime dt = qImages.value("file_datetime").toDateTime();
-                    if(dt.isValid()) item["date"] = dt.toString(Qt::ISODate).toStdString();
-                    else item["date"] = "";
+                qImages.prepare(imgSql);
+                qImages.bindValue(":path", qPath);
+                qImages.bindValue(":lim", limit);
+                qImages.bindValue(":off", offset);
+                
+                if (qImages.exec()) {
+                    while(qImages.next()) {
+                        crow::json::wvalue item;
+                        item["id"] = qImages.value("id").toInt();
+                        item["filename"] = qImages.value("file_name").toString().toStdString();
+                        // Wir nutzen 'name' im Frontend als Titel, falls vorhanden, sonst Dateiname
+                        QString dbTitle = qImages.value("title").toString();
+                        item["name"] = dbTitle.isEmpty() ? qImages.value("file_name").toString().toStdString() : dbTitle.toStdString();
+                        
+                        item["type"] = "image";
+                        
+                        // Pfade
+                        QString relDir = qImages.value("file_path").toString();
+                        QString fName = qImages.value("file_name").toString();
+                        QString fullUrl = "/media/";
+                        if (!relDir.isEmpty()) fullUrl += relDir + "/";
+                        fullUrl += fName;
+                        item["url"] = fullUrl.toStdString();
+                        
+                        // Datum
+                        QDateTime dt = qImages.value("file_datetime").toDateTime();
+                        item["date"] = dt.isValid() ? dt.toString(Qt::ISODate).toStdString() : "";
 
-                    item["city"] = qImages.value("city").toString().toStdString();
-                    item["country"] = qImages.value("country").toString().toStdString();
-                    
-                    QString cam = qImages.value("model").toString();
-                    if (!cam.isEmpty()) item["camera"] = cam.toStdString();
-                    
-                    QString iso = qImages.value("iso").toString();
-                    if (!iso.isEmpty()) item["iso"] = iso.toStdString();
+                        // Metadaten
+                        item["city"] = qImages.value("city").toString().toStdString();
+                        item["country"] = qImages.value("country").toString().toStdString();
+                        
+                        QString cam = qImages.value("model").toString();
+                        if (!cam.isEmpty()) item["camera"] = cam.toStdString();
+                        
+                        // --- NEU: IPTC Daten senden ---
+                        item["title"] = dbTitle.toStdString();
+                        item["description"] = qImages.value("description").toString().toStdString();
+                        item["copyright"] = qImages.value("copyright").toString().toStdString();
+                        
+                        // Keywords kommen als "Tag1,Tag2,Tag3" String aus der DB
+                        // Wir senden ihn als String, das Frontend splittet ihn
+                        item["keywords_string"] = qImages.value("keyword_string").toString().toStdString();
 
-                    responseList.push_back(item);
-                }
+                        responseList.push_back(item);
+                    }
             } else {
                  qCritical() << "Image Query Failed:" << qImages.lastError().text();
             }
@@ -147,6 +165,63 @@ void setupGalleryRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         return crow::response(result);
         
         // IMPORTANT: Connection is NOT closed, remains in Pool.
+    });
+
+
+/**
+ * @brief DELETE Photo
+ * 
+ */
+    CROW_ROUTE(app, "/api/gallery/<int>")
+        .methods(crow::HTTPMethod::DELETE)
+        .CROW_MIDDLEWARES(app, AuthMiddleware)
+    ([](const crow::request&, crow::response& res, int id){
+        
+        if (DbManager::deletePhoto(id)) {
+            res.code = 200;
+            res.end(R"({"status": "deleted"})");
+        } else {
+            res.code = 404; // Oder 500, aber meistens ist ID nicht gefunden
+            res.end(R"({"error": "Could not delete photo"})");
+        }
+    });
+
+    /**
+     * @brief UPDATE Photo Metadata
+     * 
+     */
+    CROW_ROUTE(app, "/api/gallery/<int>")
+        .methods(crow::HTTPMethod::PUT)
+        .CROW_MIDDLEWARES(app, AuthMiddleware)
+    ([](const crow::request& req, crow::response& res, int id){
+        
+        auto json = crow::json::load(req.body);
+        if (!json) {
+            res.code = 400;
+            res.end(R"({"error": "Invalid JSON"})");
+            return;
+        }
+
+        PhotoUpdateData data;
+        
+        // Titel & Beschreibung
+        if (json.has("title")) data.title = json["title"].s();
+        if (json.has("description")) data.description = json["description"].s();
+        
+        // Keywords (Array)
+        if (json.has("keywords")) {
+            for (const auto& k : json["keywords"]) {
+                data.keywords.push_back(k.s());
+            }
+        }
+
+        if (DbManager::updatePhotoMetadata(id, data)) {
+            res.code = 200;
+            res.end(R"({"status": "updated"})");
+        } else {
+            res.code = 500;
+            res.end(R"({"error": "Update failed"})");
+        }
     });
 }
 }

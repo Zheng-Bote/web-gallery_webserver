@@ -3,6 +3,8 @@
  * @brief Database Management Implementation.
  */
 #include "db_manager.hpp"
+#include "image_processor.hpp"
+
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDebug>
@@ -297,4 +299,128 @@ bool DbManager::insertPhoto(const WorkerPayload& p) {
 
     // IMPORTANT: DO NOT close connection, it remains open for the Thread
     return ok; 
+}
+
+bool DbManager::updatePhotoMetadata(int id, const PhotoUpdateData& data) {
+    QSqlDatabase db = getPostgresConnection();
+    if (!db.isOpen()) return false;
+
+    db.transaction();
+    bool ok = true;
+
+    QString qTitle = QString::fromStdString(data.title);
+    QString qDesc  = QString::fromStdString(data.description);
+
+    // 1. Versuch: UPDATE (Existierenden Eintrag ändern)
+    QSqlQuery qUp(db);
+    qUp.prepare("UPDATE meta_iptc SET object_name = :title, caption = :desc WHERE ref_picture = :id");
+    qUp.bindValue(":title", qTitle);
+    qUp.bindValue(":desc", qDesc);
+    qUp.bindValue(":id", id);
+
+    if (!qUp.exec()) {
+        qCritical() << "Update IPTC SQL failed:" << qUp.lastError().text();
+        ok = false;
+    } else {
+        // 2. Falls keine Zeile aktualisiert wurde (Bild hat noch keine IPTC Daten) -> INSERT
+        if (qUp.numRowsAffected() == 0) {
+            QSqlQuery qIns(db);
+            // Wir fügen ein leeres Copyright hinzu, um NOT NULL Constraints zu genügen (falls vorhanden)
+            qIns.prepare("INSERT INTO meta_iptc (ref_picture, object_name, caption, copyright) "
+                         "VALUES (:id, :title, :desc, '')");
+            qIns.bindValue(":id", id);
+            qIns.bindValue(":title", qTitle);
+            qIns.bindValue(":desc", qDesc);
+            
+            if (!qIns.exec()) {
+                qCritical() << "Insert IPTC SQL failed:" << qIns.lastError().text();
+                ok = false;
+            }
+        }
+    }
+
+    // 3. Keywords aktualisieren (Nur wenn Schritt 1/2 ok war)
+    if (ok) {
+        // A. Alte Verknüpfungen löschen
+        QSqlQuery qDelKeys(db);
+        qDelKeys.prepare("DELETE FROM picture_keywords WHERE picture_id = :id");
+        qDelKeys.bindValue(":id", id);
+        if (!qDelKeys.exec()) {
+             qCritical() << "Delete Keywords failed:" << qDelKeys.lastError().text();
+             ok = false;
+        }
+
+        // B. Neue Verknüpfungen erstellen
+        if (ok) {
+            for (const auto& k : data.keywords) {
+                if (k.empty()) continue;
+                
+                int kId = getOrCreateKeywordId(db, QString::fromStdString(k));
+                if (kId > 0) {
+                    QSqlQuery qLink(db);
+                    qLink.prepare("INSERT INTO picture_keywords (picture_id, keyword_id) VALUES (:pid, :kid) ON CONFLICT DO NOTHING");
+                    qLink.bindValue(":pid", id);
+                    qLink.bindValue(":kid", kId);
+                    if (!qLink.exec()) {
+                        qWarning() << "Link Keyword failed for" << k.c_str();
+                    }
+                }
+            }
+        }
+    }
+
+    if (ok) {
+        db.commit();
+        return true;
+    } else {
+        db.rollback();
+        return false;
+    }
+}
+
+bool DbManager::deletePhoto(int id) {
+    QSqlDatabase db = getPostgresConnection();
+    if (!db.isOpen()) return false;
+
+    // 1. Pfad ermitteln (bevor wir löschen)
+    QSqlQuery q(db);
+    q.prepare("SELECT full_path FROM pictures WHERE id = :id");
+    q.bindValue(":id", id);
+    
+    QString fullPath;
+    if (q.exec() && q.next()) {
+        fullPath = q.value(0).toString();
+    } else {
+        qWarning() << "Photo ID not found for deletion:" << id;
+        return false;
+    }
+
+    // 2. DB Eintrag löschen
+    // Hinweis: Wir verlassen uns auf ON DELETE CASCADE in der DB für Metadaten.
+    // Falls nicht eingerichtet, müssen erst meta_* Tabellen gelöscht werden.
+    QSqlQuery del(db);
+    del.prepare("DELETE FROM pictures WHERE id = :id");
+    del.bindValue(":id", id);
+    
+    if (del.exec()) {
+        qDebug() << "DB Delete :" << fullPath;  
+        // 3. Dateien physisch löschen (nur wenn DB erfolgreich war)
+        if (!fullPath.isEmpty()) {
+            QFile file(fullPath);
+            if (file.exists()) {
+                if (!file.remove()) {
+                    qWarning() << "Could not delete file:" << fullPath;
+                } else {
+                    qDebug() << "Deleted original file:" << fullPath;
+                }
+            }
+            
+            // WebP Versionen aufräumen (die wir gestern vorbereitet haben)
+            ImageProcessor::deleteAllVersions(fullPath);
+        }
+        return true;
+    } else {
+        qCritical() << "Delete failed:" << del.lastError().text();
+        return false;
+    }
 }

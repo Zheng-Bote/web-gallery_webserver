@@ -4,4 +4,4 @@ Photos/**
 uploads/**
 
 app_database.sqlite
-env.txt
+CrowQtServer.env

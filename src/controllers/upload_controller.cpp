@@ -4,6 +4,7 @@
  */
 #include "controllers/upload_controller.hpp"
 #include "metadata_extractor.hpp"
+#include "image_processor.hpp"
 #include "db_manager.hpp"
 #include "utils.hpp"
 
@@ -12,6 +13,8 @@
 #include <QDateTime>
 #include <QString>
 #include <QDebug>
+#include <QThreadPool>
+#include <QRegularExpression>
 
 namespace routes {
 
@@ -55,13 +58,31 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return;
         }
 
-        // 2. Security Checks
-        if (userSubDir.contains("..") || userSubDir.contains("\\")) {
+        // ---------------------------------------------------------
+        // PFAD BEREINIGEN (FIX FÜR DOPPELTE SLASHES)
+        // ---------------------------------------------------------
+        
+        // 1. Backslashes (Windows) zu Slashes normalisieren
+        userSubDir.replace("\\", "/");
+
+        // 2. Doppelte/Mehrfache Slashes entfernen (// -> /)
+        // Regex findet Vorkommen von 2 oder mehr Slashes
+        static const QRegularExpression multiSlash(R"(/+)");
+        userSubDir.replace(multiSlash, "/");
+
+        // 3. Security Checks (Directory Traversal)
+        if (userSubDir.contains("../") || userSubDir.contains("/..") || userSubDir == ".." || userSubDir.contains("\\")) {
             res.code = 403; 
-            res.end(R"({"error": "Security Violation: Invalid path characters."})");
+            res.end(R"({"error": "Security Violation: Invalid path components."})");
             return;
         }
+
+        // 4. Führende und nachgestellte Slashes entfernen
         while (userSubDir.startsWith("/")) userSubDir.remove(0, 1);
+        while (userSubDir.endsWith("/")) userSubDir.chop(1);
+
+        // ---------------------------------------------------------
+
 
         // Extract filename
         auto contentDisp = photoPart->get_header_object("Content-Disposition");
@@ -71,9 +92,29 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
         }
 
         QString qFilename = QString::fromStdString(rawFilename);
+        
+        // 1. Browser-Quotes entfernen
         if (qFilename.startsWith('"') || qFilename.startsWith('\'')) qFilename.remove(0, 1);
         if (qFilename.endsWith('"') || qFilename.endsWith('\'')) qFilename.chop(1);
         
+        // 2. Leerzeichen zu Unterstrich (gut für URLs)
+        qFilename.replace(" ", "_");
+
+        // 3. Böse Zeichen zu Bindestrich (Windows-Inkompatibel & Pfad-Trenner)
+        // Wir nutzen eine Regex für alle verbotenen Zeichen auf einmal
+        // R"(...)" ist ein Raw-String, damit wir Backslashes nicht doppelt escapen müssen
+        static const QRegularExpression illegalChars(R"([:/\\*?"'<>|])");
+        qFilename.replace(illegalChars, "-");
+
+        // 4. Doppelte Punkte verhindern (Sicherheit gegen .. Pfade)
+        while (qFilename.contains("..")) {
+            qFilename.replace("..", ".");
+        }
+
+        // 5. Control Characters entfernen (z.B. Newlines im Dateinamen)
+        static const QRegularExpression controlChars(R"([\x00-\x1f\x7f])");
+        qFilename.remove(controlChars);
+
         if (!utils::isAllowedImage(qFilename.toStdString())) {
             res.code = 400;
             res.end(R"({"error": "Invalid file type"})");
@@ -141,6 +182,19 @@ void setupUploadRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             res.end(R"({"error": "Server Error: Failed to move file to storage."})");
             return;
         }
+
+        // --- WebP Generierung starten ---
+        // Wir übergeben den vollen Pfad zum neuen Bild und den Ordner
+        // finalFullPath: "Photos/2025/Bild.jpg"
+        // finalRoot:     "Photos/2025"
+        
+        // Wir nutzen QThreadPool für Fire&Forget. 
+        // WICHTIG: Wir müssen die QStrings in das Lambda kopieren (capture by value),
+        // da die Referenzen ungültig werden, sobald dieser Request-Block endet.
+        QThreadPool::globalInstance()->start([finalFullPath, finalRoot](){
+            ImageProcessor::generateWebPVersions(finalFullPath, finalRoot);
+            qDebug() << "Background processing finished for:" << finalFullPath;
+        });
 
         // D. Prepare DB Insert Payload
         WorkerPayload payload;

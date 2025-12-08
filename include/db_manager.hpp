@@ -5,6 +5,7 @@
 #include <QString>
 #include <QDateTime>
 #include "metadata_extractor.hpp"
+#include <QFile>
 
 /**
  * @brief Structure for the Worker Payload.
@@ -19,6 +20,13 @@ struct WorkerPayload {
     long long fileSize; ///< Size of the file in bytes.
     QDateTime fileDate; ///< Timestamp when the file was created/taken.
     PhotoData meta; ///< Extracted metadata.
+};
+
+// NEU: Struktur für Updates
+struct PhotoUpdateData {
+    std::string title;
+    std::string description; // Mapping auf 'caption' in DB
+    std::vector<std::string> keywords;
 };
 
 /**
@@ -79,6 +87,10 @@ public:
      * @return true if insertion was successful, false otherwise.
      */
     static bool insertPhoto(const WorkerPayload& p);
+
+    static bool updatePhotoMetadata(int id, const PhotoUpdateData& data);
+
+    static bool deletePhoto(int id);
 
 private:
     /**
