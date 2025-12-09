@@ -1,7 +1,3 @@
-/**
- * @file auth_controller.cpp
- * @brief Implementation of Authentication Routes.
- */
 #include "controllers/auth_controller.hpp"
 #include "db_manager.hpp"
 #include "utils.hpp"
@@ -11,6 +7,9 @@ namespace routes {
 
 void setupAuthRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
     
+    // WICHTIG: Diese Zeile muss oben stehen, damit die Lambdas 'appPtr' kennen
+    auto* appPtr = &app;
+
     // --- LOGIN ---
     CROW_ROUTE(app, "/login").methods(crow::HTTPMethod::POST)
     ([](const crow::request& req){
@@ -79,6 +78,61 @@ void setupAuthRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             return crow::response(resp);
         }
         return crow::response(401, "Invalid refresh token");
+    });
+
+    // --- WHO AM I? (Check Auth & Status) ---
+    CROW_ROUTE(app, "/api/auth/me")
+        .methods(crow::HTTPMethod::GET)
+        .CROW_MIDDLEWARES(app, AuthMiddleware)
+    ([appPtr](const crow::request& req) {
+        
+        // HIER WAR DER FEHLER: Wir brauchen 'template', da appPtr ein Pointer auf ein Template ist
+        auto& ctx = appPtr->template get_context<AuthMiddleware>(req);
+        
+        // User anhand des Tokens (Username) laden
+        UserData u = DbManager::getUserByUsername(ctx.current_user);
+        
+        if (u.id == 0) return crow::response(404, "User not found");
+
+        crow::json::wvalue result;
+        result["id"] = u.id;
+        result["username"] = u.username;
+        result["is_active"] = u.isActive;
+        result["force_password_change"] = u.forcePasswordChange;
+        
+        return crow::response(result);
+    });
+
+    // --- CHANGE MY PASSWORD ---
+    CROW_ROUTE(app, "/api/user/change-password")
+        .methods(crow::HTTPMethod::POST)
+        .CROW_MIDDLEWARES(app, AuthMiddleware)
+    ([appPtr](const crow::request& req) {
+        
+        // HIER EBENFALLS FIXEN
+        auto& ctx = appPtr->template get_context<AuthMiddleware>(req);
+        
+        auto json = crow::json::load(req.body);
+
+        if (!json || !json.has("oldPassword") || !json.has("newPassword")) {
+            return crow::response(400, "Missing data");
+        }
+
+        std::string oldPass = json["oldPassword"].s();
+        std::string newPass = json["newPassword"].s();
+
+        if (newPass.length() < 8) return crow::response(400, "New password too short");
+
+        // Aufruf DbManager
+        int resCode = DbManager::changeOwnPassword(ctx.current_user, oldPass, newPass);
+
+        if (resCode == 0) {
+            return crow::response(200, "Password changed successfully");
+        } else if (resCode == 2) {
+            return crow::response(401, "Old password incorrect"); 
+        } else {
+            return crow::response(500, "Database error");
+        }
     });
 }
 

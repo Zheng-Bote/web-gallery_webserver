@@ -9,16 +9,6 @@ void setupAdminRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
     // Dieser Pointer ist sicher, da die App in main() lebt und nicht gelöscht wird.
     auto* appPtr = &app;
 
-    // Helper Lambda für Security Check
-    auto ensureAdmin = [](const crow::request& req, crow::response& res) -> bool {
-        // AuthMiddleware hat context gesetzt
-        // Wir kommen nur hierher, wenn Token gültig ist.
-        // Optional: Prüfen ob User == 'admin' ist.
-        // auto& ctx = app.get_context<AuthMiddleware>(req); 
-        // if (ctx.current_user != "admin") ...
-        return true; 
-    };
-
     // --- 1. LISTE ALLER USER ---
     CROW_ROUTE(app, "/api/admin/users")
         .methods(crow::HTTPMethod::GET)
@@ -42,6 +32,9 @@ void setupAdminRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             j["username"] = u.username;
             j["created_at"] = u.createdAt;
             j["is_active"] = u.isActive;
+            // Neue Felder für Admin-Ansicht (optional)
+            j["force_password_change"] = u.forcePasswordChange;
+            j["password_changed_at"] = u.passwordChangedAt;
             jsonList.push_back(j);
         }
         
@@ -119,6 +112,35 @@ void setupAdminRoutes(crow::App<crow::CORSHandler, AuthMiddleware>& app) {
             res.end("Update failed");
         }
     });
-}
 
+    // --- 5. PASSWORD RESET (Admin force) ---
+    CROW_ROUTE(app, "/api/admin/users/<int>/reset-password")
+        .methods(crow::HTTPMethod::POST)
+        .CROW_MIDDLEWARES(app, AuthMiddleware)
+    ([appPtr](const crow::request& req, crow::response& res, int id){
+        
+        // Nur Admin darf resetten
+        auto& ctx = appPtr->get_context<AuthMiddleware>(req);
+        if (ctx.current_user != "admin") { 
+            res.code = 403; res.end("Forbidden"); return; 
+        }
+
+        auto json = crow::json::load(req.body);
+        if (!json || !json.has("password")) {
+            res.code = 400; res.end("Missing password"); return;
+        }
+
+        std::string newTempPass = json["password"].s();
+
+        if (DbManager::adminResetPassword(id, newTempPass)) {
+            // Frontend erwartet text response
+            res.code = 200; 
+            res.end("Password reset. User forced to change.");
+        } else {
+            res.code = 500; 
+            res.end("Database Error");
+        }
+    });
+
+}
 }

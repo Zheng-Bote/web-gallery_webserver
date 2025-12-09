@@ -82,13 +82,15 @@ void DbManager::initAuthDatabase() {
 
         QSqlQuery query(db);
        bool ok = query.exec(
-    "CREATE TABLE IF NOT EXISTS users ("
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
-    "  username TEXT UNIQUE NOT NULL, "
-    "  password_hash TEXT NOT NULL, "
-    "  is_active INTEGER DEFAULT 1, " 
-    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-    ")"
+        "CREATE TABLE IF NOT EXISTS users ("
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "  username TEXT UNIQUE NOT NULL, "
+        "  password_hash TEXT NOT NULL, "
+        "  force_password_change INTEGER DEFAULT 0,"
+        "  password_changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,"
+        "  is_active INTEGER DEFAULT 1, " 
+        "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")"
     );
     bool ok2 = query.exec("CREATE TABLE IF NOT EXISTS refresh_tokens (token TEXT PRIMARY KEY, username TEXT, expires_at INTEGER)");
 
@@ -445,28 +447,51 @@ bool DbManager::deletePhoto(int id) {
 
 std::vector<UserData> DbManager::getAllUsers() {
     std::vector<UserData> list;
-    // Eigene Verbindung für diesen Thread holen
     QString connName = QString("admin_list_%1").arg((quint64)QThread::currentThreadId());
-    
     {
         QSqlDatabase db = getAuthDbConnection(connName);
         if (db.isOpen()) {
             QSqlQuery q(db);
-            q.exec("SELECT id, username, created_at, is_active FROM users ORDER BY id ASC");
-    
-    while(q.next()) {
-        UserData u;
-        u.id = q.value(0).toInt();
-        u.username = q.value(1).toString().toStdString();
-        u.createdAt = q.value(2).toString().toStdString();
-        // SQLite speichert bool als int (0/1)
-        u.isActive = q.value(3).toInt() != 0; 
-        list.push_back(u);
-    }
+            // Wir lesen auch die neuen Spalten
+            q.exec("SELECT id, username, created_at, is_active, force_password_change, password_changed_at FROM users ORDER BY id ASC");
+            while(q.next()) {
+                UserData u;
+                u.id = q.value(0).toInt();
+                u.username = q.value(1).toString().toStdString();
+                u.createdAt = q.value(2).toString().toStdString();
+                u.isActive = q.value(3).toInt() != 0; 
+                u.forcePasswordChange = q.value(4).toInt() != 0;
+                u.passwordChangedAt = q.value(5).toString().toStdString();
+                list.push_back(u);
+            }
         }
     }
     QSqlDatabase::removeDatabase(connName);
     return list;
+}
+
+UserData DbManager::getUserByUsername(const std::string& username) {
+    UserData u = {0, "", "", false, "", false};
+    QString connName = QString("get_user_%1").arg((quint64)QThread::currentThreadId());
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if(db.isOpen()) {
+            QSqlQuery q(db);
+            q.prepare("SELECT id, username, is_active, force_password_change, password_changed_at, created_at FROM users WHERE username = :u");
+            q.bindValue(":u", QString::fromStdString(username));
+            
+            if(q.exec() && q.next()) {
+                u.id = q.value(0).toInt();
+                u.username = q.value(1).toString().toStdString();
+                u.isActive = q.value(2).toInt() != 0;
+                u.forcePasswordChange = q.value(3).toInt() != 0;
+                u.passwordChangedAt = q.value(4).toString().toStdString();
+                u.createdAt = q.value(5).toString().toStdString();
+            }
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return u;
 }
 
 bool DbManager::createUser(const std::string& username, const std::string& password) {
@@ -545,4 +570,57 @@ bool DbManager::updateUserStatus(int id, bool active) {
     }
     QSqlDatabase::removeDatabase(connName);
     return success;
+}
+
+bool DbManager::adminResetPassword(int id, const std::string& newTempPassword) {
+    QString connName = QString("admin_reset_%1").arg((quint64)QThread::currentThreadId());
+    bool success = false;
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if(db.isOpen()) {
+            std::string hash = BCrypt::generateHash(newTempPassword);
+            QSqlQuery q(db);
+            // Setzt Passwort UND force_password_change = 1
+            q.prepare("UPDATE users SET password_hash = :p, force_password_change = 1, password_changed_at = CURRENT_TIMESTAMP WHERE id = :id");
+            q.bindValue(":p", QString::fromStdString(hash));
+            q.bindValue(":id", id);
+            
+            if(q.exec()) success = true;
+            else qCritical() << "Reset Pass failed:" << q.lastError().text();
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return success;
+}
+
+int DbManager::changeOwnPassword(const std::string& username, const std::string& oldPass, const std::string& newPass) {
+    QString connName = QString("user_change_%1").arg((quint64)QThread::currentThreadId());
+    int result = 1; // 1 = Error
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if(db.isOpen()) {
+            // 1. Altes Passwort prüfen
+            QSqlQuery check(db);
+            check.prepare("SELECT password_hash FROM users WHERE username = :u");
+            check.bindValue(":u", QString::fromStdString(username));
+            
+            if(check.exec() && check.next()) {
+                std::string storedHash = check.value(0).toString().toStdString();
+                if(!BCrypt::validatePassword(oldPass, storedHash)) {
+                    result = 2; // Wrong old password
+                } else {
+                    // 2. Update
+                    std::string newHash = BCrypt::generateHash(newPass);
+                    QSqlQuery up(db);
+                    // force_password_change = 0 (Zwang aufheben)
+                    up.prepare("UPDATE users SET password_hash = :p, force_password_change = 0, password_changed_at = CURRENT_TIMESTAMP WHERE username = :u");
+                    up.bindValue(":p", QString::fromStdString(newHash));
+                    up.bindValue(":u", QString::fromStdString(username));
+                    if(up.exec()) result = 0; // Success
+                }
+            }
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return result;
 }

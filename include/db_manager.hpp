@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include "metadata_extractor.hpp"
 #include <QFile>
+#include <vector>
 
 /**
  * @brief Structure for the Worker Payload.
@@ -39,6 +40,8 @@ struct UserData {
     int id;
     std::string username;
     std::string createdAt;
+    bool forcePasswordChange;
+    std::string passwordChangedAt;
     bool isActive;
 };
 
@@ -126,6 +129,15 @@ public:
      */
     static std::vector<UserData> getAllUsers();
     
+    // Holt User-Daten anhand des Usernamens (für /api/auth/me)
+    /**
+     * @brief Get the User By Username object
+     * 
+     * @param username 
+     * @return UserData 
+     */
+    static UserData getUserByUsername(const std::string& username);
+
     /**
      * @brief Creates a new user in the database.
      * 
@@ -149,6 +161,30 @@ public:
      * @return true if password change was successful, false otherwise.
      */
      static bool changePassword(int id, const std::string& newPassword);
+
+     // 1. Admin setzt Passwort zurück (ohne das alte zu wissen) -> Setzt force_change = 1
+    /**
+     * @brief Admin reset password
+     * 
+     * @param id 
+     * @param newTempPassword 
+     * @return true 
+     * @return false 
+     */
+     static bool adminResetPassword(int id, const std::string& newTempPassword);
+
+    // 2. User ändert sein eigenes Passwort (muss altes kennen) -> Setzt force_change = 0
+    // Return values: 0=Success, 1=DB Error, 2=Wrong Old Password
+    /**
+     * @brief Change own password
+     * 
+     * @param username 
+     * @param oldPass 
+     * @param newPass 
+     * @return int 
+     */
+    static int changeOwnPassword(const std::string& username, const std::string& oldPass, const std::string& newPass);
+
     /**
     * @brief Updates the status of a user.
     * 
