@@ -32,6 +32,17 @@ struct PhotoUpdateData {
 };
 
 /**
+ * @brief Structure for User Data.
+ * 
+ */
+struct UserData {
+    int id;
+    std::string username;
+    std::string createdAt;
+    bool isActive;
+};
+
+/**
  * @brief Database Manager Class.
  * 
  * Handles all interactions with SQLite (Auth) and PostgreSQL (Data) databases.
@@ -90,9 +101,64 @@ public:
      */
     static bool insertPhoto(const WorkerPayload& p);
 
+    /**
+     * @brief Updates a photo's metadata.
+     * 
+     * @param id The ID of the photo to update.
+     * @param data The new metadata.
+     * @return true if update was successful, false otherwise.
+     */
     static bool updatePhotoMetadata(int id, const PhotoUpdateData& data);
 
+    /**
+     * @brief Deletes a photo from the database.
+     * 
+     * @param id The ID of the photo to delete.
+     * @return true if deletion was successful, false otherwise.
+     */
     static bool deletePhoto(int id);
+
+    // User Management (SQLite)
+    /**
+     * @brief Gets all users from the database.
+     * 
+     * @return A vector of UserData objects.
+     */
+    static std::vector<UserData> getAllUsers();
+    
+    /**
+     * @brief Creates a new user in the database.
+     * 
+     * @param username The username.
+     * @param password The password.
+     * @return true if creation was successful, false otherwise.
+     */
+    static bool createUser(const std::string& username, const std::string& password);
+    /**
+     * @brief Deletes a user from the database.
+     * 
+     * @param id The ID of the user to delete.
+     * @return true if deletion was successful, false otherwise.
+     */
+    static bool deleteUser(int id);
+    /**
+     * @brief Changes a user's password.
+     * 
+     * @param id The ID of the user.
+     * @param newPassword The new password.
+     * @return true if password change was successful, false otherwise.
+     */
+     static bool changePassword(int id, const std::string& newPassword);
+    /**
+    * @brief Updates the status of a user.
+    * 
+    * @param id The ID of the user.
+    * @param active The new status.
+    * @return true if update was successful, false otherwise.
+    */
+    static bool updateUserStatus(int id, bool active);
+
+
 
 private:
     /**

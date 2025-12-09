@@ -22,6 +22,7 @@
 #include "controllers/upload_controller.hpp"
 #include "controllers/gallery_controller.hpp"
 #include "controllers/web_controller.hpp" 
+#include "controllers/admin_controller.hpp"
 
 // Port optionally loaded from ENV
 int getPort() {
@@ -45,6 +46,7 @@ void runCrowServer() {
     routes::setupUploadRoutes(app);
     routes::setupGalleryRoutes(app);
     routes::setupWebRoutes(app);
+    routes::setupAdminRoutes(app);
 
     qInfo() << "Server starting on port" << getPort();
     app.port(getPort()).multithreaded().run();

@@ -81,9 +81,20 @@ void DbManager::initAuthDatabase() {
         if (!db.isOpen()) return;
 
         QSqlQuery query(db);
-        query.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
-        query.exec("CREATE TABLE IF NOT EXISTS refresh_tokens (token TEXT PRIMARY KEY, username TEXT, expires_at INTEGER)");
+       bool ok = query.exec(
+    "CREATE TABLE IF NOT EXISTS users ("
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT, "
+    "  username TEXT UNIQUE NOT NULL, "
+    "  password_hash TEXT NOT NULL, "
+    "  is_active INTEGER DEFAULT 1, " 
+    "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    ")"
+    );
+    bool ok2 = query.exec("CREATE TABLE IF NOT EXISTS refresh_tokens (token TEXT PRIMARY KEY, username TEXT, expires_at INTEGER)");
 
+    if (!ok || !ok2) {
+        qCritical() << "Auth DB Setup Error:" << query.lastError().text();
+    }
         query.exec("SELECT count(*) FROM users WHERE username = 'admin'");
         if (query.next() && query.value(0).toInt() == 0) {
             std::string hash = BCrypt::generateHash("secret");
@@ -105,7 +116,8 @@ bool DbManager::verifyUser(const std::string& username, const std::string& passw
         QSqlDatabase db = getAuthDbConnection(connName);
         if (db.isOpen()) {
             QSqlQuery query(db);
-            query.prepare("SELECT password_hash FROM users WHERE username = :u");
+            // Login nur erlauben, wenn is_active = 1
+query.prepare("SELECT password_hash FROM users WHERE username = :u AND is_active = 1");
             query.bindValue(":u", QString::fromStdString(username));
             if (query.exec() && query.next()) {
                 std::string storedHash = query.value(0).toString().toStdString();
@@ -423,4 +435,114 @@ bool DbManager::deletePhoto(int id) {
         qCritical() << "Delete failed:" << del.lastError().text();
         return false;
     }
+}
+
+// ...
+
+// ------------------------------------------------------------------
+// ADMIN / USER MANAGEMENT (SQLite)
+// ------------------------------------------------------------------
+
+std::vector<UserData> DbManager::getAllUsers() {
+    std::vector<UserData> list;
+    // Eigene Verbindung für diesen Thread holen
+    QString connName = QString("admin_list_%1").arg((quint64)QThread::currentThreadId());
+    
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if (db.isOpen()) {
+            QSqlQuery q(db);
+            q.exec("SELECT id, username, created_at, is_active FROM users ORDER BY id ASC");
+    
+    while(q.next()) {
+        UserData u;
+        u.id = q.value(0).toInt();
+        u.username = q.value(1).toString().toStdString();
+        u.createdAt = q.value(2).toString().toStdString();
+        // SQLite speichert bool als int (0/1)
+        u.isActive = q.value(3).toInt() != 0; 
+        list.push_back(u);
+    }
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return list;
+}
+
+bool DbManager::createUser(const std::string& username, const std::string& password) {
+    QString connName = QString("admin_create_%1").arg((quint64)QThread::currentThreadId());
+    bool success = false;
+    
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if (db.isOpen()) {
+            
+            // 1. Zuerst prüfen, ob Username schon existiert
+            QSqlQuery check(db);
+            check.prepare("SELECT id FROM users WHERE username = :u");
+            check.bindValue(":u", QString::fromStdString(username));
+            if (check.exec() && check.next()) {
+                qWarning() << "Create user aborted: Username already exists ->" << QString::fromStdString(username);
+                // Wir schließen die DB Verbindung hier sauber
+                // QSqlDatabase::removeDatabase passiert am Ende der Funktion
+                return false; 
+            }
+
+            // 2. Insert
+            std::string hash = BCrypt::generateHash(password);
+            QSqlQuery q(db);
+            // Wichtig: Wir verlassen uns auf den DEFAULT Wert von is_active (1)
+            q.prepare("INSERT INTO users (username, password_hash, is_active) VALUES (:u, :p, 1)");
+            q.bindValue(":u", QString::fromStdString(username));
+            q.bindValue(":p", QString::fromStdString(hash));
+            
+            if (q.exec()) {
+                success = true;
+                qDebug() << "User created successfully:" << QString::fromStdString(username);
+            } else {
+                qCritical() << "Create user SQL failed:" << q.lastError().text();
+            }
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return success;
+}
+
+bool DbManager::deleteUser(int id) {
+    QString connName = QString("admin_del_%1").arg((quint64)QThread::currentThreadId());
+    bool success = false;
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if (db.isOpen()) {
+            // Admin darf sich nicht selbst löschen (optionaler Check)
+            // if (id == 1) return false; 
+
+            QSqlQuery q(db);
+            q.prepare("DELETE FROM users WHERE id = :id");
+            q.bindValue(":id", id);
+            if(q.exec()) success = true;
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return success;
+}
+
+bool DbManager::updateUserStatus(int id, bool active) {
+    // SCHUTZ: Root-Admin (ID 1) darf nicht deaktiviert werden!
+    if (id == 1 && !active) return false;
+
+    QString connName = QString("admin_status_%1").arg((quint64)QThread::currentThreadId());
+    bool success = false;
+    {
+        QSqlDatabase db = getAuthDbConnection(connName);
+        if (db.isOpen()) {
+            QSqlQuery q(db);
+            q.prepare("UPDATE users SET is_active = :status WHERE id = :id");
+            q.bindValue(":status", active ? 1 : 0);
+            q.bindValue(":id", id);
+            if (q.exec()) success = true;
+        }
+    }
+    QSqlDatabase::removeDatabase(connName);
+    return success;
 }
