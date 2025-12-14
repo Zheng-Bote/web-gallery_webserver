@@ -1,3 +1,20 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [CrowQtServer - High-Performance Backend](#crowqtserver---high-performance-backend)
+  - [🚀 Features](#-features)
+    - [🔐 Security & Authentication](#-security--authentication)
+    - [🗄️ Hybrid Database System](#-hybrid-database-system)
+    - [⚙️ User Management](#-user-management)
+    - [🖼️ Image Processing](#-image-processing)
+  - [🏗️ Architecture](#-architecture)
+    - [System Architecture](#system-architecture)
+  - [Key Technical DecisionsQt](#key-technical-decisionsqt)
+  - [Project Structure](#project-structure)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # CrowQtServer - High-Performance Backend
 
 ![C++](https://img.shields.io/badge/C++-20-blue.svg?logo=c%2B%2B)
