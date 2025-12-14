@@ -66,4 +66,73 @@ graph TD
     subgraph "Persistence"
         DbManager -->|QtSQL| SQLite[(SQLite: Users)]
         DbManager -->|QtSQL| Postgres[(PostgreSQL: Photos)]
-    end
+<!-- readme-tree start -->
+```
+.
+├── .github
+│   ├── actions
+│   │   └── doctoc
+│   │       ├── README.md
+│   │       ├── action.yml
+│   │       └── dist
+│   │           ├── index.js
+│   │           ├── index.js.map
+│   │           ├── licenses.txt
+│   │           └── sourcemap-register.js
+│   └── workflows
+│       ├── ghp-call_Readme.yml
+│       ├── ghp-create_doctoc.yml
+│       ├── ghp-markdown_index.yml
+│       ├── repo-actions_docu.yml
+│       ├── repo-call_Readme.yml
+│       ├── repo-create_doctoc.yml_
+│       ├── repo-create_doctoc_md.yml
+│       └── repo-create_tree_readme.yml
+├── .gitignore
+├── CMakeLists.txt
+├── LICENSE
+├── README.md
+├── build_appimage.sh
+├── configure
+│   ├── CMakeLists.txt
+│   └── rz_config.hpp.in
+├── crowqt.desktop
+├── crowqt.png
+├── docs
+│   ├── deployment.md
+│   └── todos.md
+├── include
+│   ├── auth_middleware.hpp
+│   ├── controllers
+│   │   ├── admin_controller.hpp
+│   │   ├── auth_controller.hpp
+│   │   ├── gallery_controller.hpp
+│   │   ├── upload_controller.hpp
+│   │   └── web_controller.hpp
+│   ├── db_manager.hpp
+│   ├── image_processor.hpp
+│   ├── metadata_extractor.hpp
+│   ├── rz_config.hpp
+│   └── utils.hpp
+├── src
+│   ├── auth_middleware.cpp
+│   ├── controllers
+│   │   ├── admin_controller.cpp
+│   │   ├── auth_controller.cpp
+│   │   ├── gallery_controller.cpp
+│   │   ├── upload_controller.cpp
+│   │   └── web_controller.cpp
+│   ├── db_manager.cpp
+│   ├── image_processor.cpp
+│   ├── main.cpp
+│   ├── metadata_extractor.cpp
+│   └── utils.cpp
+├── static
+│   └── index.html
+├── templates
+│   └── template.html
+└── tree.bak
+
+14 directories, 50 files
+```
+<!-- readme-tree end -->
