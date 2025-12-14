@@ -1,3 +1,18 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [CrowQtServer - High-Performance Backend](#crowqtserver---high-performance-backend)
+  - [🚀 Features](#-features)
+    - [🔐 Sicherheit & Auth](#-sicherheit--auth)
+    - [🗄️ Hybride Datenbank-Architektur](#-hybride-datenbank-architektur)
+    - [⚙️ Administration & User-Management](#-administration--user-management)
+    - [🖼️ Medienverwaltung](#-medienverwaltung)
+  - [🏗️ Architektur](#-architektur)
+    - [High-Level Übersicht](#high-level-%C3%9Cbersicht)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # CrowQtServer - High-Performance Backend
 
 ![C++](https://img.shields.io/badge/C++-20-blue.svg?logo=c%2B%2B)
