@@ -1,18 +1,3 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
-
-- [CrowQtServer - High-Performance Backend](#crowqtserver---high-performance-backend)
-  - [🚀 Features](#-features)
-    - [🔐 Sicherheit & Auth](#-sicherheit--auth)
-    - [🗄️ Hybride Datenbank-Architektur](#-hybride-datenbank-architektur)
-    - [⚙️ Administration & User-Management](#-administration--user-management)
-    - [🖼️ Medienverwaltung](#-medienverwaltung)
-  - [🏗️ Architektur](#-architektur)
-    - [High-Level Übersicht](#high-level-%C3%9Cbersicht)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
 # CrowQtServer - High-Performance Backend
 
 ![C++](https://img.shields.io/badge/C++-20-blue.svg?logo=c%2B%2B)
@@ -20,46 +5,48 @@
 ![Crow](https://img.shields.io/badge/Crow-v1.0-orange.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 
-Der **CrowQtServer** ist ein leistungsstarkes, multithreaded REST-Backend für die CrowGallery. Er kombiniert die Geschwindigkeit des **Crow Microframeworks** für HTTP-Routing mit der Robustheit und dem Ökosystem von **Qt 6** (SQL, Core, Filesystem).
+**CrowQtServer** is a high-performance, multithreaded REST API designed for the CrowGallery application. It leverages the speed of the **Crow Microframework** for asynchronous HTTP routing while utilizing the robustness of **Qt 6** for database management, file system operations, and string handling.
 
-Dieses Backend dient als zentrale API für das Angular-Frontend und verwaltet Authentifizierung, Bildverarbeitung und Datenbankzugriffe.
+This server acts as the secure core of the application, handling JWT authentication, hybrid database interactions (SQLite & PostgreSQL), and image metadata processing.
 
 ---
 
 ## 🚀 Features
 
-### 🔐 Sicherheit & Auth
-* **JWT Authentifizierung:** Implementiert Access-Tokens (kurzlebig) und Refresh-Tokens (langlebig) mit `jwt-cpp`.
-* **Sicheres Hashing:** Passwörter werden mittels **Bcrypt** und Salt gespeichert.
-* **Middleware:** Vorgeschaltete Auth-Middleware zur Validierung von Tokens vor Controller-Zugriff.
-* **CORS Support:** Vollständige Konfiguration für Cross-Origin Resource Sharing.
+### 🔐 Security & Authentication
+* **JWT Implementation:** Uses `jwt-cpp` to issue short-lived **Access Tokens** and secure, long-lived **Refresh Tokens**.
+* **Bcrypt Hashing:** Passwords are salted and hashed using `libbcrypt` before storage.
+* **Middleware Architecture:**
+    * **AuthMiddleware:** Validates Bearer tokens before requests reach protected controllers.
+    * **CORSHandler:** Custom implementation to handle Preflight (`OPTIONS`) requests correctly.
+* **Role-Based Protection:** specific routes (e.g., User Management) are locked to the `admin` role.
 
-### 🗄️ Hybride Datenbank-Architektur
-* **SQLite (Auth):** Schnelle, lokale Verwaltung von Benutzern, Passwörtern und Refresh-Tokens (`app_database.sqlite`).
-* **PostgreSQL (Data):** Skalierbare Speicherung für Bilddaten, Metadaten (Exif, IPTC) und Keywords.
-* **Connection Pooling:** Thread-safe Datenbankverbindungen über `QSqlDatabase` (eine Verbindung pro Thread).
+### 🗄️ Hybrid Database System
+* **SQLite (Authentication):** Fast, file-based storage for user credentials, roles, and tokens (`app_database.sqlite`).
+* **PostgreSQL (Gallery Data):** Scalable, relational storage for millions of photos, Exif/IPTC metadata, and keywords.
+* **Thread-Safe Pooling:** Implements a custom **Thread-Local Connection Pool**. Since Crow is multithreaded and `QSqlDatabase` is not thread-safe, the server creates a unique, named database connection for every active thread.
 
-### ⚙️ Administration & User-Management
-* **User Lifecycle:** Anlegen, Löschen und Deaktivieren (Sperren) von Benutzern.
-* **Password Policy:** Unterstützung für erzwungene Passwortänderungen (Flag `force_password_change`) und Admin-Resets.
-* **Role-Checks:** Spezielle Endpunkte, die nur für den `admin` User zugänglich sind.
+### ⚙️ User Management
+* **CRUD Operations:** Admins can Create, Delete, and Deactivate users.
+* **Security Policies:**
+    * **Force Password Change:** Logic to force users to reset credentials upon next login (e.g., after an admin reset).
+    * **Self-Service:** Endpoints for users to change their own passwords securely.
 
-### 🖼️ Medienverwaltung
-* **Metadata Extraction:** Liest Exif, IPTC und XMP Daten aus Bildern aus.
-* **Smart Upload:** Verarbeitet Uploads, generiert Pfade und speichert Metadaten transaktionssicher.
-* **Optimierung:** (Vorbereitet) Generierung von Thumbnails und WebP-Varianten.
+### 🖼️ Image Processing
+* **Metadata Extraction:** Parsers for Exif, IPTC, and XMP data.
+* **Smart Uploads:** Transaction-safe ingestion of new images into the PostgreSQL database.
 
 ---
 
-## 🏗️ Architektur
+## 🏗️ Architecture
 
-Das Projekt nutzt eine **Controller-Service-Repository** ähnliche Struktur, angepasst an C++.
+The project follows a **Controller-Service-Repository** pattern adapted for modern C++.
 
-### High-Level Übersicht
+### System Architecture
 
 ```mermaid
 graph TD
-    Client[Angular Frontend] -->|HTTP Request| Crow[Crow Router]
+    Client[Angular Frontend] -->|JSON / HTTP| Crow[Crow Router]
     
     subgraph "Middleware Layer"
         Crow --> CORS[CORS Handler]
@@ -70,84 +57,83 @@ graph TD
         AuthMW --> AuthCtrl[Auth Controller]
         AuthMW --> AdminCtrl[Admin Controller]
         AuthMW --> GalleryCtrl[Gallery Controller]
+        AuthMW --> UploadCtrl[Upload Controller]
     end
     
-    subgraph "Service / Data Layer"
-        AuthCtrl --> DbManager
-        AdminCtrl --> DbManager
-        GalleryCtrl --> DbManager
+    subgraph "Data Access Layer (DbManager)"
+        AuthCtrl --> SqliteConn[SQLite Connection]
+        AdminCtrl --> SqliteConn
+        GalleryCtrl --> PgConn[Postgres Connection]
+        UploadCtrl --> PgConn
     end
     
     subgraph "Persistence"
-        DbManager -->|QtSQL| SQLite[(SQLite: Users)]
-        DbManager -->|QtSQL| Postgres[(PostgreSQL: Photos)]
-<!-- readme-tree start -->
+        SqliteConn -->|Auth Data| File[(app_database.sqlite)]
+        PgConn -->|Photo Data| PG[(PostgreSQL DB)]
+    end
 ```
-.
-├── .github
-│   ├── actions
-│   │   └── doctoc
-│   │       ├── README.md
-│   │       ├── action.yml
-│   │       └── dist
-│   │           ├── index.js
-│   │           ├── index.js.map
-│   │           ├── licenses.txt
-│   │           └── sourcemap-register.js
-│   └── workflows
-│       ├── ghp-call_Readme.yml
-│       ├── ghp-create_doctoc.yml
-│       ├── ghp-markdown_index.yml
-│       ├── repo-actions_docu.yml
-│       ├── repo-call_Readme.yml
-│       ├── repo-create_doctoc.yml_
-│       ├── repo-create_doctoc_md.yml
-│       └── repo-create_tree_readme.yml
-├── .gitignore
-├── CMakeLists.txt
-├── LICENSE
-├── README.md
-├── build_appimage.sh
-├── configure
-│   ├── CMakeLists.txt
-│   └── rz_config.hpp.in
-├── crowqt.desktop
-├── crowqt.png
-├── docs
-│   ├── deployment.md
-│   └── todos.md
-├── include
-│   ├── auth_middleware.hpp
-│   ├── controllers
-│   │   ├── admin_controller.hpp
-│   │   ├── auth_controller.hpp
-│   │   ├── gallery_controller.hpp
-│   │   ├── upload_controller.hpp
-│   │   └── web_controller.hpp
-│   ├── db_manager.hpp
-│   ├── image_processor.hpp
-│   ├── metadata_extractor.hpp
-│   ├── rz_config.hpp
-│   └── utils.hpp
-├── src
-│   ├── auth_middleware.cpp
-│   ├── controllers
-│   │   ├── admin_controller.cpp
-│   │   ├── auth_controller.cpp
-│   │   ├── gallery_controller.cpp
-│   │   ├── upload_controller.cpp
-│   │   └── web_controller.cpp
-│   ├── db_manager.cpp
-│   ├── image_processor.cpp
-│   ├── main.cpp
-│   ├── metadata_extractor.cpp
-│   └── utils.cpp
-├── static
-│   └── index.html
-├── templates
-│   └── template.html
-└── tree.bak
 
-14 directories, 50 files
+## Key Technical DecisionsQt 
++ Crow Hybrid:
+  - We use Crow for the Web Server because it is significantly faster and lighter than Qt's QHttpServer.
+  - We use Qt Core/Sql because its database drivers and string manipulation (QString) are superior to standard C++ for business logic.
+    
+  -- Concurrency Model:
+   - Crow spawns multiple worker threads.
+   - The DbManager uses QThread::currentThreadId() to assign specific database connections to specific threads. This ensures lock-free, thread-safe database access without race conditions.
+
+    ## 🛠️ Tech Stack
+
+  Language:    C++ 20
+
+  Web Framework: CrowCore
+
+  Framework: Qt 6.x (Modules: Core, Sql, Network)
+
+  Dependencies:nlohmann/json (JSON Serialization)jwt-cpp (Token Generation/Validation)libbcrypt (Password Hashing)dotenv (Environment Configuration)
+
+  # ⚙️ Installation & SetupPrerequisites
+
+  C++ Compiler (GCC 10+, Clang 11+, or MSVC 2019+)
+
+  CMake (3.14 or higher)
+
+  Qt 6 SDK (Ensure Qt6Sql and Qt6Network are installed)
+
+  PostgreSQL Server (running locally or remotely)
+
+<pre>
+Key Technical DecisionsQt + Crow Hybrid:We use Crow for the Web Server because it is significantly faster and lighter than Qt's QHttpServer.We use Qt Core/Sql because its database drivers and string manipulation (QString) are superior to standard C++ for business logic.Concurrency Model:Crow spawns multiple worker threads.The DbManager uses QThread::currentThreadId() to assign specific database connections to specific threads. This ensures lock-free, thread-safe database access without race conditions.🛠️ Tech StackLanguage: C++ 20Web Framework: CrowCore Framework: Qt 6.x (Modules: Core, Sql, Network)Dependencies:nlohmann/json (JSON Serialization)jwt-cpp (Token Generation/Validation)libbcrypt (Password Hashing)dotenv (Environment Configuration)⚙️ Installation & SetupPrerequisitesC++ Compiler (GCC 10+, Clang 11+, or MSVC 2019+)CMake (3.14 or higher)Qt 6 SDK (Ensure Qt6Sql and Qt6Network are installed)PostgreSQL Server (running locally or remotely)1. Clone the RepositoryBashgit clone [https://github.com/yourusername/crow-qt-server.git](https://github.com/yourusername/crow-qt-server.git)
+cd crow-qt-server
+2. Configure Environment (.env)Create a .env file in your root (or build) directory to configure the server:Ini, TOMLPORT=8080
+JWT_SECRET=CHANGE_THIS_TO_A_LONG_RANDOM_STRING
+
+# PostgreSQL Configuration
+PG_HOST=localhost
+PG_PORT=5432
+PG_DB=Photos
+PG_USER=postgres
+PG_PASS=your_password
+3. Build the ProjectBashmkdir build
+cd build
+cmake ..
+make -j4
+4. Run the ServerBash./CrowQtServer
+Note: On the very first run, the server will automatically create the app_database.sqlite file and generate a default Admin User:Username: adminPassword: secretPlease change this password immediately via the API or Frontend.🔌 API Endpoints (Overview)MethodEndpointDescriptionAccessPOST/loginAuthenticate and retrieve tokensPublicPOST/refreshGet new Access Token via Refresh TokenPublicGET/api/auth/meGet current user status & flagsUserPOST/api/user/change-passwordChange own passwordUserGET/api/admin/usersList all registered usersAdminPOST/api/admin/usersCreate a new userAdminPUT/api/admin/users/:id/statusLock/Unlock a user accountAdminPOST/api/admin/users/:id/reset-passwordForce-reset a user's passwordAdmin
+</pre>
+
+## Project Structure
+
+```bash
+src/
+├── controllers/       # Route definitions (Auth, Admin, Upload)
+├── middlewares/       # Request pre-processing (Auth, CORS)
+├── services/          # Business logic layer
+├── main.cpp           # Entry point & Server configuration
+├── db_manager.cpp     # QtSQL wrapper & Connection Pooling
+├── db_manager.hpp     # Database Interface
+├── utils.hpp          # Helper functions
+└── CMakeLists.txt     # Build configuration
 ```
-<!-- readme-tree end -->
+
+
