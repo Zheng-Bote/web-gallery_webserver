@@ -15,22 +15,21 @@
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
 **Table of Contents**
 
 - [Description](#description)
   - [🚀 Features](#-features)
-    - [🔐 Security \& Authentication](#-security--authentication)
-    - [🗄️ Hybrid Database System](#️-hybrid-database-system)
-    - [⚙️ User Management](#️-user-management)
-    - [🖼️ Image Processing](#️-image-processing)
-- [⚙️ Installation \& Setup](#️-installation--setup)
+    - [🔐 Security & Authentication](#-security--authentication)
+    - [🗄️ Hybrid Database System](#-hybrid-database-system)
+    - [⚙️ User Management](#-user-management)
+    - [🖼️ Image Processing](#-image-processing)
+- [⚙️ Installation & Setup](#-installation--setup)
   - [📂 Project Structure](#-project-structure)
 - [🔌 API Endpoints (Overview)](#-api-endpoints-overview)
-- [🏗️ Architecture](#️-architecture)
+- [🏗️ Architecture](#-architecture)
   - [System Architecture](#system-architecture)
   - [Key Technical Decisions](#key-technical-decisions)
-  - [🛠️ Tech Stack](#️-tech-stack)
+  - [🛠️ Tech Stack](#-tech-stack)
 - [📄 License](#-license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
