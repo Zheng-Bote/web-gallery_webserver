@@ -165,6 +165,7 @@ The project follows a **Controller-Service-Repository** pattern adapted for mode
 ## System Architecture
 
 ```mermaid
+
 graph TD
     Client[Angular Frontend] -->|JSON / HTTP| Crow[Crow Router]
 
